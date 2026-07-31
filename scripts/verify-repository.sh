@@ -13,7 +13,8 @@ for required_file in \
   LICENSE \
   SECURITY.md \
   CONTRIBUTING.md \
-  CHANGELOG.md; do
+  CHANGELOG.md \
+  docs/releases/v1.0.0-rc.1.md; do
   if [[ ! -f "${required_file}" ]]; then
     echo "Required repository file is missing: ${required_file}"
     failures=$((failures + 1))
