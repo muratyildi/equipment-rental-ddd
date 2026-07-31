@@ -1,0 +1,92 @@
+@baseUrl = http://localhost:5099
+@customerId = 11111111-1111-1111-1111-111111111111
+@equipmentCategoryId = 22222222-2222-2222-2222-222222222222
+@fulfilmentLocationId = 44444444-4444-4444-4444-444444444444
+@readApiKey = local-reader-key-change-me-2026
+@writeApiKey = local-operator-key-change-me-2026
+
+### Health
+GET {{baseUrl}}/
+
+### Liveness
+GET {{baseUrl}}/health/live
+
+### Readiness
+GET {{baseUrl}}/health/ready
+
+### Define capacity in the Fleet Availability context
+POST {{baseUrl}}/api/fleet-availability/schedules
+Content-Type: application/json
+X-Api-Key: {{writeApiKey}}
+
+{
+  "equipmentCategoryId": "{{equipmentCategoryId}}",
+  "locationId": "{{fulfilmentLocationId}}",
+  "totalCapacity": 5
+}
+
+### Query availability
+GET {{baseUrl}}/api/fleet-availability/availability
+    ?equipmentCategoryId={{equipmentCategoryId}}
+    &locationId={{fulfilmentLocationId}}
+    &startDate=2030-08-10
+    &endDateExclusive=2030-08-13
+X-Api-Key: {{readApiKey}}
+
+### Query the eventually consistent CQRS calendar
+GET {{baseUrl}}/api/fleet-availability/calendar
+    ?equipmentCategoryId={{equipmentCategoryId}}
+    &locationId={{fulfilmentLocationId}}
+    &startDate=2030-08-10
+    &endDateExclusive=2030-08-13
+X-Api-Key: {{readApiKey}}
+
+### Create a draft rental order
+# Copy the returned order id and line id into the variables below.
+POST {{baseUrl}}/api/rental-orders
+Content-Type: application/json
+X-Api-Key: {{writeApiKey}}
+
+{
+  "customerId": "{{customerId}}",
+  "fulfilmentLocationId": "{{fulfilmentLocationId}}",
+  "startDate": "2030-08-10",
+  "endDateExclusive": "2030-08-13",
+  "lines": [
+    {
+      "equipmentCategoryId": "{{equipmentCategoryId}}",
+      "quantity": 2,
+      "dailyRate": 1500,
+      "currency": "TRY"
+    }
+  ]
+}
+
+### Replace these after creating the order
+@rentalOrderId = 00000000-0000-0000-0000-000000000000
+@rentalLineId = 00000000-0000-0000-0000-000000000000
+
+### Quote
+POST {{baseUrl}}/api/rental-orders/{{rentalOrderId}}/quote
+Content-Type: application/json
+X-Api-Key: {{writeApiKey}}
+
+{
+  "expiresAtUtc": "2030-08-05T00:00:00Z"
+}
+
+### Ask Fleet Availability to commit this line
+POST {{baseUrl}}/api/rental-orders/{{rentalOrderId}}/lines/{{rentalLineId}}/request-availability
+X-Api-Key: {{writeApiKey}}
+
+### Start the asynchronous confirmation Process Manager
+POST {{baseUrl}}/api/rental-orders/{{rentalOrderId}}/confirmation
+X-Api-Key: {{writeApiKey}}
+
+### Poll confirmation process state
+GET {{baseUrl}}/api/rental-orders/{{rentalOrderId}}/confirmation
+X-Api-Key: {{readApiKey}}
+
+### Query
+GET {{baseUrl}}/api/rental-orders/{{rentalOrderId}}
+X-Api-Key: {{readApiKey}}

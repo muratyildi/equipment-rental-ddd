@@ -1,0 +1,7 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\EquipmentRental.Modules.Rentals.Domain\EquipmentRental.Modules.Rentals.Domain.csproj" />
+  </ItemGroup>
+
+</Project>

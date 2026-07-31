@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\BuildingBlocks\EquipmentRental.BuildingBlocks.Eventing\EquipmentRental.BuildingBlocks.Eventing.csproj" />
+    <ProjectReference Include="..\..\Rentals\EquipmentRental.Modules.Rentals.Contracts\EquipmentRental.Modules.Rentals.Contracts.csproj" />
+    <ProjectReference Include="..\EquipmentRental.Modules.Notifications.Application\EquipmentRental.Modules.Notifications.Application.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+  </ItemGroup>
+
+</Project>

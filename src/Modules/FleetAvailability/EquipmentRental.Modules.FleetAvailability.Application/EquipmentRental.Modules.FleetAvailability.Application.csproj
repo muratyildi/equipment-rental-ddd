@@ -1,0 +1,8 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\EquipmentRental.Modules.FleetAvailability.Contracts\EquipmentRental.Modules.FleetAvailability.Contracts.csproj" />
+    <ProjectReference Include="..\EquipmentRental.Modules.FleetAvailability.Domain\EquipmentRental.Modules.FleetAvailability.Domain.csproj" />
+  </ItemGroup>
+
+</Project>

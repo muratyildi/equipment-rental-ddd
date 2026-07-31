@@ -1,0 +1,51 @@
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: equipment_rental
+      POSTGRES_USER: equipment_rental
+      POSTGRES_PASSWORD: equipment_rental
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U equipment_rental -d equipment_rental"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - equipment-rental-postgres:/var/lib/postgresql
+
+  migrations:
+    build:
+      context: .
+      target: migrations
+    environment:
+      ConnectionStrings__Database: Host=postgres;Port=5432;Database=equipment_rental;Username=equipment_rental;Password=equipment_rental
+      EQUIPMENT_RENTAL_DATABASE: Host=postgres;Port=5432;Database=equipment_rental;Username=equipment_rental;Password=equipment_rental
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build:
+      context: .
+      target: runtime
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__Database: Host=postgres;Port=5432;Database=equipment_rental;Username=equipment_rental;Password=equipment_rental
+      Security__ApiKeys__0__Name: compose-reader
+      Security__ApiKeys__0__Key: ${EQUIPMENT_RENTAL_READ_API_KEY:-local-compose-reader-key-change-me}
+      Security__ApiKeys__0__Scopes__0: equipment-rental.read
+      Security__ApiKeys__1__Name: compose-operator
+      Security__ApiKeys__1__Key: ${EQUIPMENT_RENTAL_WRITE_API_KEY:-local-compose-operator-key-change-me}
+      Security__ApiKeys__1__Scopes__0: equipment-rental.read
+      Security__ApiKeys__1__Scopes__1: equipment-rental.write
+    ports:
+      - "5099:8080"
+    depends_on:
+      migrations:
+        condition: service_completed_successfully
+
+volumes:
+  equipment-rental-postgres:

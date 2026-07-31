@@ -1,0 +1,40 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\BuildingBlocks\EquipmentRental.BuildingBlocks.Eventing\EquipmentRental.BuildingBlocks.Eventing.csproj" />
+    <ProjectReference Include="..\..\..\src\Modules\Notifications\EquipmentRental.Modules.Notifications.Application\EquipmentRental.Modules.Notifications.Application.csproj" />
+    <ProjectReference Include="..\..\..\src\Modules\Notifications\EquipmentRental.Modules.Notifications.Infrastructure\EquipmentRental.Modules.Notifications.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\src\Modules\Rentals\EquipmentRental.Modules.Rentals.Contracts\EquipmentRental.Modules.Rentals.Contracts.csproj" />
+    <ProjectReference Include="..\..\..\src\Modules\Rentals\EquipmentRental.Modules.Rentals.Domain\EquipmentRental.Modules.Rentals.Domain.csproj" />
+    <ProjectReference Include="..\..\..\src\Modules\Rentals\EquipmentRental.Modules.Rentals.Application\EquipmentRental.Modules.Rentals.Application.csproj" />
+    <ProjectReference Include="..\..\..\src\Modules\Rentals\EquipmentRental.Modules.Rentals.Infrastructure\EquipmentRental.Modules.Rentals.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\src\Modules\Rentals\EquipmentRental.Modules.Rentals.ProcessManagers\EquipmentRental.Modules.Rentals.ProcessManagers.csproj" />
+    <ProjectReference Include="..\..\..\src\Modules\FleetAvailability\EquipmentRental.Modules.FleetAvailability.Contracts\EquipmentRental.Modules.FleetAvailability.Contracts.csproj" />
+    <ProjectReference Include="..\..\..\src\Modules\FleetAvailability\EquipmentRental.Modules.FleetAvailability.Domain\EquipmentRental.Modules.FleetAvailability.Domain.csproj" />
+    <ProjectReference Include="..\..\..\src\Modules\FleetAvailability\EquipmentRental.Modules.FleetAvailability.Application\EquipmentRental.Modules.FleetAvailability.Application.csproj" />
+    <ProjectReference Include="..\..\..\src\Modules\FleetAvailability\EquipmentRental.Modules.FleetAvailability.Infrastructure\EquipmentRental.Modules.FleetAvailability.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\src\Modules\FleetAvailability\EquipmentRental.Modules.FleetAvailability.ReadModel\EquipmentRental.Modules.FleetAvailability.ReadModel.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,46 @@
+<Solution>
+  <Folder Name="/src/" />
+  <Folder Name="/src/BuildingBlocks/">
+    <Project Path="src/BuildingBlocks/EquipmentRental.BuildingBlocks.Eventing/EquipmentRental.BuildingBlocks.Eventing.csproj" />
+  </Folder>
+  <Folder Name="/src/Api/">
+    <Project Path="src/Api/EquipmentRental.Api/EquipmentRental.Api.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/" />
+  <Folder Name="/src/Modules/Notifications/">
+    <Project Path="src/Modules/Notifications/EquipmentRental.Modules.Notifications.Application/EquipmentRental.Modules.Notifications.Application.csproj" />
+    <Project Path="src/Modules/Notifications/EquipmentRental.Modules.Notifications.Infrastructure/EquipmentRental.Modules.Notifications.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/FleetAvailability/">
+    <Project Path="src/Modules/FleetAvailability/EquipmentRental.Modules.FleetAvailability.Application/EquipmentRental.Modules.FleetAvailability.Application.csproj" />
+    <Project Path="src/Modules/FleetAvailability/EquipmentRental.Modules.FleetAvailability.Contracts/EquipmentRental.Modules.FleetAvailability.Contracts.csproj" />
+    <Project Path="src/Modules/FleetAvailability/EquipmentRental.Modules.FleetAvailability.Domain/EquipmentRental.Modules.FleetAvailability.Domain.csproj" />
+    <Project Path="src/Modules/FleetAvailability/EquipmentRental.Modules.FleetAvailability.Infrastructure/EquipmentRental.Modules.FleetAvailability.Infrastructure.csproj" />
+    <Project Path="src/Modules/FleetAvailability/EquipmentRental.Modules.FleetAvailability.ReadModel/EquipmentRental.Modules.FleetAvailability.ReadModel.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Rentals/">
+    <Project Path="src/Modules/Rentals/EquipmentRental.Modules.Rentals.Application/EquipmentRental.Modules.Rentals.Application.csproj" />
+    <Project Path="src/Modules/Rentals/EquipmentRental.Modules.Rentals.Contracts/EquipmentRental.Modules.Rentals.Contracts.csproj" />
+    <Project Path="src/Modules/Rentals/EquipmentRental.Modules.Rentals.Domain/EquipmentRental.Modules.Rentals.Domain.csproj" />
+    <Project Path="src/Modules/Rentals/EquipmentRental.Modules.Rentals.Infrastructure/EquipmentRental.Modules.Rentals.Infrastructure.csproj" />
+    <Project Path="src/Modules/Rentals/EquipmentRental.Modules.Rentals.ProcessManagers/EquipmentRental.Modules.Rentals.ProcessManagers.csproj" />
+  </Folder>
+  <Folder Name="/tests/" />
+  <Folder Name="/tests/Api/">
+    <Project Path="tests/Api/EquipmentRental.Api.Tests/EquipmentRental.Api.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tests/Integration/">
+    <Project Path="tests/Integration/EquipmentRental.Persistence.IntegrationTests/EquipmentRental.Persistence.IntegrationTests.csproj" />
+  </Folder>
+  <Folder Name="/tests/Architecture/">
+    <Project Path="tests/Architecture/EquipmentRental.ArchitectureTests/EquipmentRental.ArchitectureTests.csproj" />
+  </Folder>
+  <Folder Name="/tests/Modules/" />
+  <Folder Name="/tests/Modules/FleetAvailability/">
+    <Project Path="tests/Modules/FleetAvailability/EquipmentRental.Modules.FleetAvailability.Domain.Tests/EquipmentRental.Modules.FleetAvailability.Domain.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tests/Modules/Rentals/">
+    <Project Path="tests/Modules/Rentals/EquipmentRental.Modules.Rentals.Application.Tests/EquipmentRental.Modules.Rentals.Application.Tests.csproj" />
+    <Project Path="tests/Modules/Rentals/EquipmentRental.Modules.Rentals.Domain.Tests/EquipmentRental.Modules.Rentals.Domain.Tests.csproj" />
+  </Folder>
+</Solution>

@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\BuildingBlocks\EquipmentRental.BuildingBlocks.Eventing\EquipmentRental.BuildingBlocks.Eventing.csproj" />
+    <ProjectReference Include="..\..\Modules\Notifications\EquipmentRental.Modules.Notifications.Infrastructure\EquipmentRental.Modules.Notifications.Infrastructure.csproj" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Modules\Rentals\EquipmentRental.Modules.Rentals.Application\EquipmentRental.Modules.Rentals.Application.csproj" />
+    <ProjectReference Include="..\..\Modules\Rentals\EquipmentRental.Modules.Rentals.Domain\EquipmentRental.Modules.Rentals.Domain.csproj" />
+    <ProjectReference Include="..\..\Modules\Rentals\EquipmentRental.Modules.Rentals.Infrastructure\EquipmentRental.Modules.Rentals.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\Modules\Rentals\EquipmentRental.Modules.Rentals.ProcessManagers\EquipmentRental.Modules.Rentals.ProcessManagers.csproj" />
+    <ProjectReference Include="..\..\Modules\FleetAvailability\EquipmentRental.Modules.FleetAvailability.Contracts\EquipmentRental.Modules.FleetAvailability.Contracts.csproj" />
+    <ProjectReference Include="..\..\Modules\FleetAvailability\EquipmentRental.Modules.FleetAvailability.Domain\EquipmentRental.Modules.FleetAvailability.Domain.csproj" />
+    <ProjectReference Include="..\..\Modules\FleetAvailability\EquipmentRental.Modules.FleetAvailability.Application\EquipmentRental.Modules.FleetAvailability.Application.csproj" />
+    <ProjectReference Include="..\..\Modules\FleetAvailability\EquipmentRental.Modules.FleetAvailability.Infrastructure\EquipmentRental.Modules.FleetAvailability.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\Modules\FleetAvailability\EquipmentRental.Modules.FleetAvailability.ReadModel\EquipmentRental.Modules.FleetAvailability.ReadModel.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+    tags: ["v*"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CI: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_NOLOGO: true
+
+jobs:
+  quality:
+    name: Build, test, and architecture gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Restore tools
+        run: dotnet tool restore
+
+      - name: Restore dependencies
+        run: dotnet restore EquipmentRental.slnx
+
+      - name: Verify repository hygiene and Markdown links
+        run: bash scripts/verify-repository.sh
+
+      - name: Verify formatting
+        run: dotnet format EquipmentRental.slnx --no-restore --verify-no-changes
+
+      - name: Build
+        run: dotnet build EquipmentRental.slnx --configuration Release --no-restore
+
+      - name: Verify migration snapshots
+        run: bash scripts/verify-migrations.sh
+
+      - name: Test
+        run: >-
+          dotnet test EquipmentRental.slnx
+          --configuration Release
+          --no-build
+          --collect:"XPlat Code Coverage"
+          --results-directory artifacts/test-results
+
+      - name: Upload coverage reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-reports
+          path: artifacts/test-results/**/coverage.cobertura.xml
+          if-no-files-found: error
+          retention-days: 7
+
+  container:
+    name: Container release candidate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Validate Compose model
+        run: docker compose config --quiet
+
+      - name: Build non-root API image
+        run: docker build --target runtime --tag equipment-rental-api:ci .
