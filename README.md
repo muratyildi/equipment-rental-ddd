@@ -183,6 +183,13 @@ The API starts with the URL shown in the terminal. Example requests are
 available in
 [`EquipmentRental.Api.http`](src/Api/EquipmentRental.Api/EquipmentRental.Api.http).
 
+Interactive Swagger UI is available at
+[http://localhost:5099/swagger](http://localhost:5099/swagger) when running in
+Development or through the local Docker Compose environment. Enter a configured
+key through **Authorize**; Swagger sends it as the `X-Api-Key` header. API
+documentation is opt-in through `ApiDocumentation:Enabled` and remains disabled
+by default in production configuration.
+
 ## Current quality gate
 
 - 22 domain behavior tests

@@ -120,6 +120,13 @@ docker compose up --build
 Örnek HTTP çağrıları:
 [`EquipmentRental.Api.http`](src/Api/EquipmentRental.Api/EquipmentRental.Api.http)
 
+Development veya yerel Docker Compose ortamında interaktif Swagger arayüzü
+[http://localhost:5099/swagger](http://localhost:5099/swagger) adresindedir.
+**Authorize** alanına yapılandırılmış bir anahtar girildiğinde istekler
+`X-Api-Key` header'ıyla gönderilir. API dokümantasyonu
+`ApiDocumentation:Enabled` ayarıyla açıkça etkinleştirilir ve production
+yapılandırmasında varsayılan olarak kapalıdır.
+
 ## Mevcut durum
 
 - Ürün vizyonu ve domain uzmanları tanımlandı.

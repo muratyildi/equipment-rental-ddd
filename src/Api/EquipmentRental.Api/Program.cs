@@ -4,6 +4,7 @@ using EquipmentRental.Api.Endpoints;
 using EquipmentRental.Api.ErrorHandling;
 using EquipmentRental.Api.Eventing;
 using EquipmentRental.Api.Observability;
+using EquipmentRental.Api.OpenApi;
 using EquipmentRental.Api.ProcessManagers;
 using EquipmentRental.Api.Security;
 using EquipmentRental.BuildingBlocks.Eventing;
@@ -31,6 +32,7 @@ builder.Services.AddProblemDetails(options =>
             context.HttpContext.TraceIdentifier;
     };
 });
+builder.Services.AddApiDocumentation();
 builder.Services.AddExceptionHandler<RentalOrderNotFoundExceptionHandler>();
 builder.Services.AddExceptionHandler<RentalLineNotFoundExceptionHandler>();
 builder.Services.AddExceptionHandler<AvailabilityScheduleNotFoundExceptionHandler>();
@@ -97,6 +99,11 @@ builder.Services.AddTransient<ConfirmRentalOrderHandler>();
 builder.Services.AddTransient<GetRentalOrderHandler>();
 
 var app = builder.Build();
+
+if (app.Configuration.GetValue<bool>(ApiDocumentation.ConfigurationKey))
+{
+    app.UseApiDocumentation();
+}
 
 app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseExceptionHandler();

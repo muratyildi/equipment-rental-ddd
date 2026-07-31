@@ -5,6 +5,9 @@
 @readApiKey = local-reader-key-change-me-2026
 @writeApiKey = local-operator-key-change-me-2026
 
+### Interactive API documentation
+# Open http://localhost:5099/swagger and use Authorize with one of the keys above.
+
 ### Health
 GET {{baseUrl}}/
 

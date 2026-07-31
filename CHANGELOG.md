@@ -5,7 +5,10 @@ implementation.
 
 ## [Unreleased]
 
-No changes yet.
+### Added
+
+- Opt-in Swagger UI and OpenAPI JSON for local API exploration, including
+  `X-Api-Key` authorization metadata for protected endpoints.
 
 ## [1.0.0] - 2026-07-31
 

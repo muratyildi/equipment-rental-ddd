@@ -33,6 +33,7 @@ services:
       target: runtime
     environment:
       ASPNETCORE_ENVIRONMENT: Production
+      ApiDocumentation__Enabled: "true"
       ConnectionStrings__Database: Host=postgres;Port=5432;Database=equipment_rental;Username=equipment_rental;Password=equipment_rental
       Security__ApiKeys__0__Name: compose-reader
       Security__ApiKeys__0__Key: ${EQUIPMENT_RENTAL_READ_API_KEY:-local-compose-reader-key-change-me}
