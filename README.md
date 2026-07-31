@@ -5,7 +5,7 @@
 > A learning-first, production-minded Domain-Driven Design reference built with
 > .NET 10.
 
-**Status:** `v1.0.0-rc.1` release candidate · 81 tests · zero-warning Release
+**Status:** `v1.0.0` stable · 81 tests · zero-warning Release
 build · modular monolith by evidence-based decision
 
 [Türkçe](README.tr.md) · [Architecture](docs/architecture/README.md) ·
@@ -76,7 +76,7 @@ These rules live in the domain model and are verified by executable examples.
 | Long-running workflow and compensation | [Rental Confirmation Process Manager](docs/architecture/rental-confirmation-process-manager.md) |
 | Observability, resilience, and security | [Operational Readiness guide](docs/architecture/operational-readiness.md) |
 | Evidence-based deployment evolution | [Service Extraction Assessment](docs/architecture/service-extraction-assessment.md) |
-| Release scope and publication evidence | [v1.0.0-rc.1 checklist](docs/releases/v1.0.0-rc.1.md) |
+| Release scope and publication evidence | [v1.0.0 release record](docs/releases/v1.0.0.md) |
 | Decision context and trade-offs | [ADR index](docs/decisions/README.md) |
 
 ## Architecture
@@ -211,15 +211,15 @@ available in
 
 ## Learning material
 
-The repository contains Turkish, chapter-level study notes based on Eric
-Evans's *Domain-Driven Design* and Vlad Khononov's *Learning Domain-Driven
-Design*. The notes summarize and apply the ideas; they do not reproduce the
-copyrighted books.
+The repository contains original English study guides based on Eric Evans's
+*Domain-Driven Design* and Vlad Khononov's *Learning Domain-Driven Design*.
+They compare, explain, and apply the ideas without reproducing the copyrighted
+books.
 
-- [DDD source review](docs/learning/00-kaynak-incelemesi.md)
-- [Learning roadmap](docs/learning/01-yol-haritasi.md)
-- [Eric Evans's Blue Book](docs/learning/02-blue-book-incelemesi.md)
-- [Historical and integrated reading guide](docs/learning/03-tarihsel-ve-butunsel-okuma-rehberi.md)
+- [DDD source review](docs/learning/00-source-review.md)
+- [Learning roadmap](docs/learning/01-learning-roadmap.md)
+- [Eric Evans's Blue Book](docs/learning/02-blue-book-review.md)
+- [Historical and integrated reading guide](docs/learning/03-historical-and-integrated-reading-guide.md)
 
 ## License
 

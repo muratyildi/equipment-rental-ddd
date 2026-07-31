@@ -1,150 +1,77 @@
-# Persistence ve optimistic concurrency
+# Persistence and Optimistic Concurrency
 
-Bu milestone'un amacı “EF Core kullanmak” değil, DDD'nin consistency ve veri
-sahipliği kararlarını veritabanında dürüstçe uygulamaktır.
+The goal is not merely to use EF Core. It is to implement DDD consistency and
+data-ownership decisions honestly in storage.
 
-## 1. Repository neyi saklar?
+## Aggregate repositories
 
-Repository bir tablo koleksiyonu değildir. Domain açısından
-`IRentalOrderRepository`, `RentalOrder` aggregate yaşam döngüsünü; Fleet
-repository'si ise `AvailabilitySchedule` yaşam döngüsünü temsil eder.
+A repository is not a collection of tables. `IRentalOrderRepository` manages
+the `RentalOrder` aggregate lifecycle; the Fleet repository manages
+`AvailabilitySchedule`. Repositories are accessed through Aggregate Roots,
+load all state required for a decision, expose no child-Entity repository, and
+complete a transaction through `SaveChangesAsync`. `RentalLine` and
+`AvailabilityCommitment` use separate tables but are not separate aggregates.
 
-Bu nedenle repository:
+## Persistence-ignorant Domain model
 
-- yalnızca aggregate root üzerinden erişilir;
-- child entity için ayrı repository sunmaz;
-- yüklerken karar vermek için gereken aggregate'in tamamını getirir;
-- transaction'ı `SaveChangesAsync` ile tamamlar.
+Fluent mappings live in Infrastructure. Domain objects contain no `[Key]`,
+`[Column]`, or `[Timestamp]` attributes. Private parameterless constructors and
+setters support EF rehydration without granting callers mutation access;
+changes still go through domain behaviors such as `Draft`, `AddLine`, `Quote`,
+and `Commit`.
 
-`RentalLine` ve `AvailabilityCommitment` ayrı tablolardır ama bağımsız
-aggregate değildir. Tablo sınırı ile aggregate sınırı aynı kavram değildir.
+Strongly typed IDs map to PostgreSQL `uuid` through `HasConversion`. `Money`,
+`RentalPeriod`, and `AvailabilityPeriod` remain single Value Objects in the
+model while owned mappings expand them into relational columns.
 
-## 2. Domain neden EF Core referansı içermiyor?
-
-Mapping'ler Infrastructure katmanındaki fluent configuration sınıflarındadır.
-Domain nesnelerinde `[Key]`, `[Column]`, `[Timestamp]` gibi persistence
-attribute'ları yoktur.
-
-EF Core'un nesneyi veritabanından yeniden oluşturabilmesi için private
-parameterless constructor ve private setter kullanılır. Bunlar dışarıya
-mutasyon yetkisi vermez; uygulama hâlâ yalnızca `Draft`, `AddLine`, `Quote`,
-`Commit` gibi domain davranışlarını çağırabilir.
-
-## 3. Strongly typed ID ve Value Object mapping
-
-`RentalOrderId`, `CustomerId`, `AvailabilityScheduleId` gibi tipler domain'de
-yanlış kimliklerin birbirine karıştırılmasını engeller. PostgreSQL'de `uuid`
-olarak saklanırlar; dönüşüm Infrastructure'daki `HasConversion` ile yapılır.
-
-`Money`, `RentalPeriod` ve `AvailabilityPeriod` sahip olunan değerler olarak
-aynı tabloya açılır. Domain anlamı tek nesne olarak kalırken ilişkisel model
-kolonlara ayrılır.
-
-## 4. Schema neden context başına ayrıldı?
+## Schema per owner
 
 ```text
 equipment_rental database
 ├── rentals
-│   ├── rental_orders
-│   ├── rental_lines
-│   ├── outbox_messages
-│   └── __ef_migrations_history
 ├── fleet_availability
-│   ├── availability_schedules
-│   ├── availability_commitments
-│   ├── outbox_messages
-│   └── __ef_migrations_history
 ├── fleet_availability_read
-│   ├── availability_schedules
-│   ├── availability_days
-│   ├── inbox_messages
-│   └── __ef_migrations_history
 ├── rentals_process_manager
-│   ├── rental_confirmation_processes
-│   ├── rental_confirmation_steps
-│   └── __ef_migrations_history
 └── notifications
-    ├── inbox_messages
-    ├── notification_work_items
-    └── __ef_migrations_history
 ```
 
-Bu ayrım, aynı process ve database kullanılsa bile veri sahipliğini görünür
-kılar. Rentals, Fleet tablolarına foreign key veya doğrudan sorgu ile
-bağlanmaz; Fleet'in published contract'ını kullanır.
+Each schema owns its tables, Outbox/Inbox where relevant, and migration
+history. Contexts do not create cross-schema foreign keys or query each other's
+tables; they use Published Contracts. One database is a deployment choice, not
+shared model ownership.
 
-## 5. Optimistic concurrency hangi problemi çözüyor?
+## Optimistic concurrency
 
-Kapasite 2 iken iki istek aynı anda schedule'ı okuyabilir. İkisi de yerel
-kopyasında 2 adet müsait görür. Kontrol yalnızca domain metodunda olursa iki
-işlem de kabul kararı verebilir.
-
-PostgreSQL her satırda son değiştiren transaction kimliğini taşıyan gizli
-`xmin` kolonuna sahiptir. Npgsql mapping'i bunu `IsRowVersion()` concurrency
-token'ı olarak kullanır. EF UPDATE sırasında okuduğu eski `xmin` değerini
-koşula ekler:
+Two requests can read capacity 2 and both decide locally that 2 units remain.
+PostgreSQL's hidden `xmin` value is mapped with `IsRowVersion()`. EF includes
+the version read earlier in the root update:
 
 ```sql
 UPDATE fleet_availability.availability_schedules
 SET updated_at_utc = ...
-WHERE id = ... AND xmin = <okunan sürüm>;
+WHERE id = ... AND xmin = <version-read>;
 ```
 
-İlk işlem kökü günceller ve `xmin` değişir. İkinci işlem sıfır satır
-güncellediğinde EF Core `DbUpdateConcurrencyException` üretir.
+After the first transaction changes `xmin`, the second updates zero rows and
+EF raises `DbUpdateConcurrencyException`. The API maps this to `409 Conflict`
+with `persistence.optimistic_concurrency_conflict`. Clients must reload current
+state and resubmit intent; blind retry could apply a stale domain decision.
 
-API bu hatayı `409 Conflict` ve
-`persistence.optimistic_concurrency_conflict` problem koduna çevirir. İstemci
-güncel state'i yükleyip niyetini yeniden göndermelidir. Eski işlemi körlemesine
-otomatik retry etmek, domain kararını güncel veri üzerinde tekrar vermeden
-uygulamak anlamına gelebilir.
+Child changes would normally update only child tables, so each DbContext also
+touches the tracked root's `updated_at_utc`. This makes `xmin` protect the whole
+aggregate boundary.
 
-Alt entity eklemek normalde yalnızca child tabloyu değiştirebilirdi. Bu yüzden
-DbContext her save işleminde izlenen aggregate root'un `updated_at_utc`
-alanına dokunur. Böylece child değişimi de kökün `xmin` kontrolünden geçer.
+## Explicit migrations
 
-## 6. Neden otomatik startup migration yok?
+The API does not migrate on startup. Multiple replicas racing to change schema
+creates operational and privilege risks. Migrations are an explicit deployment
+job for all five DbContexts, with the connection overridden through
+`ConnectionStrings__Database` outside local development.
 
-API başlangıcında otomatik migration, birden fazla instance aynı anda açılırken
-yarış ve production yetki sorunları yaratabilir. Migration açık bir deployment
-adımıdır:
+## Test strategy
 
-```bash
-dotnet tool restore
-docker compose up -d
-
-dotnet tool run dotnet-ef database update \
-  --project src/Modules/Rentals/EquipmentRental.Modules.Rentals.Infrastructure \
-  --context RentalsDbContext
-
-dotnet tool run dotnet-ef database update \
-  --project src/Modules/FleetAvailability/EquipmentRental.Modules.FleetAvailability.Infrastructure \
-  --context FleetAvailabilityDbContext
-
-dotnet tool run dotnet-ef database update \
-  --project src/Modules/FleetAvailability/EquipmentRental.Modules.FleetAvailability.ReadModel \
-  --context AvailabilityCalendarDbContext
-
-dotnet tool run dotnet-ef database update \
-  --project src/Modules/Rentals/EquipmentRental.Modules.Rentals.ProcessManagers \
-  --context RentalConfirmationProcessDbContext
-```
-
-Connection string varsayılan olarak yalnızca local demo içindir. Başka bir
-ortamda `ConnectionStrings__Database` ile override edilmelidir.
-
-## 7. Test stratejisi
-
-EF Core InMemory provider kullanılmaz; çünkü PostgreSQL veri tiplerini,
-migration'ları ve `xmin` davranışını taklit etmez. Testcontainers geçici gerçek
-PostgreSQL 18 container'ı açar ve şunları kanıtlar:
-
-1. İki modülün migration'ları uygulanabilir.
-2. Aggregate, child entity ve Value Object'leriyle round-trip olur.
-3. Rehydration yeni Domain Event üretmez.
-4. Stale Rentals yazısı concurrency exception alır.
-5. Stale Fleet yazısı overbooking yapamaz.
-
-Unit testler domain kararlarının hızlı kanıtıdır; integration testleri ise
-teknik adapter'ın bu kararları bozmadığının kanıtıdır. İkisi birbirinin yerine
-geçmez.
+EF Core InMemory cannot reproduce PostgreSQL types, migrations, or `xmin`.
+Testcontainers runs real PostgreSQL and proves migrations, aggregate/Value
+Object round trips, rehydration without new Domain Events, stale Rentals
+conflicts, and prevention of stale Fleet overbooking. Unit tests prove domain
+decisions; integration tests prove adapters preserve them.

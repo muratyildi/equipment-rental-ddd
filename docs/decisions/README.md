@@ -1,59 +1,38 @@
-# Mimari Karar Günlüğü
+# Architecture Decision Log
 
-Architecture Decision Record (ADR), önemli bir kararın yalnızca sonucunu değil,
-kararın verildiği andaki bağlamı ve bedellerini saklar.
+An Architecture Decision Record (ADR) preserves not only an important
+decision's outcome, but also the context and trade-offs understood when it was
+made.
 
-## Durumlar
+## Statuses
 
-- `Proposed`: Tartışmaya açık öneri
-- `Accepted`: Uygulanmasına karar verilmiş
-- `Superseded`: Daha yeni bir ADR tarafından değiştirilmiş
-- `Rejected`: Değerlendirilmiş fakat seçilmemiş
+- `Proposed`: open for discussion
+- `Accepted`: approved for implementation
+- `Superseded`: replaced by a newer ADR
+- `Rejected`: considered but not selected
 
-## Şablon
+## Record structure
 
-Her ADR şu başlıkları içerir:
+Each ADR captures the context, decision drivers, considered options, decision,
+positive and negative consequences, reconsideration conditions, and related
+domain scenarios or executable evidence.
 
-1. Başlık ve durum
-2. Bağlam / problem
-3. Karar sürücüleri
-4. Değerlendirilen seçenekler
-5. Karar
-6. Olumlu sonuçlar
-7. Olumsuz sonuçlar ve riskler
-8. Yeniden değerlendirme koşulları
-9. İlgili domain senaryoları ve testler
+## Records
 
-## Kayıtlar
+- [ADR-0001 — Start with a Modular Monolith](0001-start-with-a-modular-monolith.md) (`Accepted`)
+- [ADR-0002 — Select the Equipment Rental Domain](0002-select-the-equipment-rental-domain.md) (`Accepted`)
+- [ADR-0003 — Use .NET 10, C# 14, and SLNX](0003-use-dotnet-10-and-slnx.md) (`Accepted`)
+- [ADR-0004 — Prefer Explicit Use-Case Handlers Initially](0004-explicit-use-case-handlers.md) (`Accepted`)
+- [ADR-0005 — Temporary In-Memory Adapters](0005-temporary-in-memory-adapters.md) (`Superseded`)
+- [ADR-0006 — Fleet Availability and Consumer-Owned ACL](0006-fleet-availability-and-consumer-owned-acl.md) (`Accepted`)
+- [ADR-0007 — Line-by-Line Availability Process](0007-line-by-line-availability-process.md) (`Superseded by ADR-0012`)
+- [ADR-0008 — PostgreSQL, EF Core, and Optimistic Concurrency](0008-postgresql-ef-core-and-optimistic-concurrency.md) (`Accepted`)
+- [ADR-0009 — Domain Events and Transactional Outbox](0009-domain-events-and-transactional-outbox.md) (`Accepted`)
+- [ADR-0010 — Idempotent Consumer and Transactional Inbox](0010-idempotent-consumer-and-transactional-inbox.md) (`Accepted`)
+- [ADR-0011 — CQRS Availability Calendar Read Model](0011-cqrs-availability-calendar-read-model.md) (`Accepted`)
+- [ADR-0012 — Rental Confirmation Process Manager](0012-rental-confirmation-process-manager.md) (`Accepted`)
+- [ADR-0013 — Operational Readiness Boundaries](0013-operational-readiness-boundary.md) (`Accepted`)
+- [ADR-0014 — No Service Extraction without Measured Drivers](0014-no-service-extraction-without-measured-drivers.md) (`Accepted`)
 
-- [ADR-0001 — Modüler monolit ile başlama](0001-moduler-monolit-ile-baslama.md)
-  (`Accepted`)
-- [ADR-0002 — Ekipman kiralama domain'ini seçmek](0002-ekipman-kiralama-domaini.md)
-  (`Accepted`)
-- [ADR-0003 — .NET 10, C# 14 ve SLNX kullanmak](0003-dotnet-10-ve-slnx.md)
-  (`Accepted`)
-- [ADR-0004 — İlk aşamada mediator yerine açık use-case handler'ları](0004-explicit-use-case-handlers.md)
-  (`Accepted`)
-- [ADR-0005 — Walking skeleton için geçici in-memory repository](0005-in-memory-adapter-gecicidir.md)
-  (`Superseded`)
-- [ADR-0006 — Fleet Availability context'i ve consumer-owned ACL](0006-fleet-availability-ve-acl.md)
-  (`Accepted`)
-- [ADR-0007 — Çok satırlı availability sürecini şimdilik satır bazında yürütmek](0007-cok-satirli-commitment-sureci.md)
-  (`Superseded by ADR-0012`)
-- [ADR-0008 — PostgreSQL, EF Core ve aggregate optimistic concurrency](0008-postgresql-ef-core-ve-optimistic-concurrency.md)
-  (`Accepted`)
-- [ADR-0009 — Domain Event'leri Transactional Outbox ile yayımlamak](0009-domain-events-ve-transactional-outbox.md)
-  (`Accepted`)
-- [ADR-0010 — Idempotent consumer ve Transactional Inbox](0010-idempotent-consumer-ve-transactional-inbox.md)
-  (`Accepted`)
-- [ADR-0011 — Availability Calendar için CQRS read model](0011-cqrs-availability-calendar-read-model.md)
-  (`Accepted`)
-- [ADR-0012 — Rental confirmation Process Manager](0012-rental-confirmation-process-manager.md)
-  (`Accepted`)
-- [ADR-0013 — Operasyonel güvenilirlik sınırları](0013-operational-readiness-boundary.md)
-  (`Accepted`)
-- [ADR-0014 — Ölçülmüş sürücü olmadan servis çıkarmama](0014-olculmus-surucu-olmadan-servis-cikarmama.md)
-  (`Accepted`)
-
-Kaynak incelemesinden çıkan başlangıç ilkeleri
-[kaynak incelemesinde](../learning/00-kaynak-incelemesi.md) kayıtlıdır.
+The foundational learning principles are recorded in the
+[source review](../learning/00-source-review.md).

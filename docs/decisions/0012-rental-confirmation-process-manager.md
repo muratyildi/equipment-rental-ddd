@@ -1,53 +1,51 @@
-# ADR-0012: Rental confirmation'ı kalıcı Process Manager ile yürütmek
+# ADR-0012 — Coordinate Rental Confirmation with a Persisted Process Manager
 
-- Durum: Accepted
-- Tarih: 2026-07-31
+- Status: Accepted
+- Date: 2026-07-31
 - Supersedes: ADR-0007
 
-## Bağlam
+## Context
 
-Çok satırlı RentalOrder farklı Fleet Availability aggregate'lerinde
-commitment gerektirir. Kısmi başarı kapasiteyi gereksiz tutabilir; process veya
-instance restart'ı yalnızca bellekte tutulan ilerlemeyi kaybettirir.
+A multi-line Rental Order needs commitments from different Fleet Availability
+aggregates. Partial success can retain capacity unnecessarily, and in-memory
+progress is lost after a process or instance restart.
 
-## Seçenekler
+## Considered options
 
-1. Aggregate sınırlarını aşan tek database/distributed transaction
-2. Stateless application service ile sıralı çağrı
-3. Event koreografisi
-4. Kalıcı state ve explicit compensation içeren Process Manager
+1. One database/distributed transaction across aggregate boundaries
+2. Sequential calls from a stateless Application Service
+3. Event choreography
+4. A Process Manager with persisted state and explicit compensation
 
-## Karar
+## Decision
 
-Dördüncü seçenek seçildi. Rentals'ın consumer-owned Fleet portunu kullanan ayrı
-bir ProcessManagers projesi oluşturulacaktır. Her RentalLine idempotent commit
-edilecek; ret veya timeout'ta başarılı commitment'lar ters sırada release
-edilecek; hepsi başarılı olduğunda RentalOrder confirm edilecektir.
+Choose option four. A separate ProcessManagers project uses Rentals' consumer-
+owned Fleet port. Commit every Rental Line idempotently, release successful
+commitments in reverse order after rejection or timeout, and confirm the
+Rental Order only after all commitments succeed.
 
-Process Manager Fleet internallerine referans vermeyecek, kendi PostgreSQL
-schema/migration yaşam döngüsüne sahip olacak ve `xmin` tabanlı worker claim
-kullanacaktır.
+The Process Manager does not reference Fleet internals. It owns a PostgreSQL
+schema/migration lifecycle and uses `xmin`-based worker claims.
 
-## Sonuçlar
+## Consequences
 
-Olumlu:
+Positive:
 
-- Restart sonrasında süreç kaldığı yerden devam eder.
-- Partial success görünür ve telafi edilir.
-- Duplicate start, commit ve release güvenlidir.
-- HTTP isteğinin ömrü business process ömründen ayrılır.
-- Aggregate ve bounded-context transaction sınırları korunur.
+- Work resumes after restart; partial success is visible and compensated.
+- Duplicate start, commit, and release operations are safe.
+- HTTP request lifetime is separated from business-process lifetime.
+- Aggregate and bounded-context transaction boundaries remain intact.
 
-Olumsuz:
+Negative:
 
-- Strong global atomicity yoktur; eventual completion vardır.
-- Ek state machine, worker, schema ve operasyonel izleme gerekir.
-- Compensation da başarısız olabilir ve retry/operatör müdahalesi ister.
-- Yeni süreç sürümleri için in-flight state migration politikası gerekecektir.
+- There is eventual completion rather than strong global atomicity.
+- A state machine, worker, schema, and operational monitoring are required.
+- Compensation can fail and require retry or operator intervention.
+- New process versions need a policy for in-flight state migration.
 
-## Kanıtlar
+## Evidence
 
 - `RentalConfirmationProcessManagerTests`
-- Fleet ve Rentals release domain testleri
+- Fleet and Rentals release Domain tests
 - `RentalProcessManager_UsesRentalsPortsWithoutFleetInternals`
-- [Process Manager rehberi](../architecture/rental-confirmation-process-manager.md)
+- [Process Manager guide](../architecture/rental-confirmation-process-manager.md)

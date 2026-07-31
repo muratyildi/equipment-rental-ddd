@@ -1,152 +1,150 @@
-# Operational Readiness: Observability, Resilience, Security
+# Operational Readiness: Observability, Resilience, and Security
 
-Bu milestone'un amacı “production-ready” etiketi yapıştırmak değildir. Sistem
-çalışmadığında ne olduğunu anlayabilmek, geçici hatayla kalıcı hatayı ayırmak
-ve business endpoint'lerini varsayılan olarak korumaktır.
+The goal of this milestone is not to apply a vague “production-ready” label.
+It is to make failures diagnosable, distinguish transient from terminal
+failures, and protect business endpoints by default.
 
 ## Observability
 
-Observability üç sinyalden oluşur:
+The system treats observability as three complementary signals:
 
-- **Log:** Ayrık olayların structured kaydı
-- **Trace:** Bir isteğin ve alt operasyonlarının nedensel akışı
-- **Metric:** Zaman içindeki sayısal sistem davranışı
+- **Logs** record discrete events with structured fields.
+- **Traces** describe the causal path of a request and its child operations.
+- **Metrics** describe numerical behavior over time.
 
 ### Correlation
 
-Her HTTP isteği `X-Correlation-ID` taşır. Güvenli karakterlerden oluşan ve 128
-karakteri aşmayan caller değeri korunur; eksik veya güvenli değilse trace id ya
-da yeni GUID üretilir.
+Every HTTP request has an `X-Correlation-ID`. A caller-supplied value is
+preserved only when it contains safe characters and is at most 128 characters;
+otherwise the current trace identifier or a new GUID is used.
 
-Değer:
+The selected value is:
 
-- response header'a yazılır;
-- `HttpContext.TraceIdentifier` olur;
-- structured logging scope'una `CorrelationId` olarak eklenir;
-- Problem Details ve health cevaplarında görünür.
+- returned in the response header;
+- assigned to `HttpContext.TraceIdentifier`;
+- added to the structured logging scope as `CorrelationId`; and
+- included in Problem Details and health responses.
 
-Caller tarafından gelen değer log injection'a dönüşmesin diye satır sonu,
-boşluk ve kontrol karakterleri kabul edilmez.
+Whitespace, line breaks, and control characters are rejected to prevent a
+caller-controlled value from becoming a log-injection vector.
 
-### Structured logs ve telemetry API
+### Structured logs and telemetry APIs
 
-Production console logları JSON formatındadır. Background worker logları
-message template kullanır; string interpolation ile aranması zor metin
-üretilmez.
+Production console logs use JSON. Background workers use message templates
+instead of interpolated strings so fields remain searchable.
 
-Building Block, vendor-neutral .NET `ActivitySource` ve `Meter` API'lerini
-tanımlar. Outbox publish/failure/dead-letter ve Process Manager
-transition/intervention sayaçları kaydedilir. Bir deployment OpenTelemetry,
-Application Insights veya başka bir `MeterListener`/`ActivityListener`
-adapter'ını composition root'a takabilir. Domain projeleri exporter paketine
-bağlanmaz.
+The Eventing building block exposes vendor-neutral .NET `ActivitySource` and
+`Meter` APIs. It records Outbox publication, failure, and dead-letter signals,
+plus Process Manager transitions and interventions. A deployment can attach
+OpenTelemetry, Application Insights, or another listener in the composition
+root without adding exporter dependencies to Domain projects.
 
-### Liveness ve readiness
+### Liveness and readiness
 
 ```text
 GET /health/live
 GET /health/ready
 ```
 
-Liveness yalnızca process'in cevap verebildiğini gösterir. Database kesildi
-diye liveness başarısız yapılmaz; aksi hâlde orchestrator restart storm
-üretebilir.
+Liveness answers only whether the process can respond. A database outage does
+not fail liveness, avoiding an orchestrator restart storm.
 
-Readiness beş DbContext'in PostgreSQL bağlantısını sınar:
+Readiness checks PostgreSQL connectivity for all five DbContexts:
 
-- bağlantı yoksa `Unhealthy / 503`;
-- bağlantı var fakat dead-letter veya `RequiresIntervention` process varsa
-  `Degraded / 200`;
-- sorun yoksa `Healthy / 200`.
+- no connection returns `Unhealthy / 503`;
+- connectivity with dead-lettered work or a `RequiresIntervention` process
+  returns `Degraded / 200`; and
+- no detected problem returns `Healthy / 200`.
 
-Degraded instance trafik alabilir fakat operasyon alarmı gerektirir.
-Health endpoint'leri orchestrator için anonymous ve rate-limit dışıdır;
-production ingress/network policy bunları yalnızca kontrol düzlemine açmalıdır.
+A degraded instance can still receive traffic but requires an operational
+alert. Health endpoints are anonymous and exempt from application rate limits
+so an ingress or network policy must expose them only to the control plane.
 
 ## Resilience
 
-### Retry bütçesi
+### Bounded retries
 
-Retry yalnızca işlemin idempotent olduğu yerde güvenlidir. Outbox publish ve
-Process Manager adımları stable id/demand id kullandığı için retry edilebilir.
+A retry is safe only when the operation is idempotent. Outbox publication and
+Process Manager steps use stable message or demand identifiers and can
+therefore be retried.
 
-Sınırsız retry uygulanmaz:
+Retries are bounded:
 
-| İşlem | Bütçe | Terminal state |
-|---|---:|---|
+| Operation | Budget | Terminal state |
+| --- | ---: | --- |
 | Outbox publication | 5 | `DeadLetteredAtUtc` |
 | Process Manager technical failure | 5 | `RequiresIntervention` |
 
-Outbox exponential backoff kullanır ve dead-letter mesajı otomatik seçmez.
-Process Manager terminal intervention state'inde worker tarafından tekrar
-claim edilmez. Böylece poison item diğer işleri sonsuza kadar meşgul etmez.
+Outbox retries use exponential backoff and never automatically reclaim a
+dead-lettered message. The worker does not claim a Process Manager in its
+terminal intervention state. A poison item therefore cannot occupy the worker
+forever.
 
-Terminal state otomatik veri silme değildir. Operatör hata sebebini çözüp
-ileride eklenecek kontrollü replay/resume komutunu kullanmalıdır. Database'de
-elle status değiştirmek önerilen recovery mekanizması değildir.
+A terminal state is not automatic deletion. An operator must fix the cause and
+use a controlled replay or resume capability. Editing status fields directly
+in the database is not the recovery mechanism.
 
 ### Rate limiting
 
-Business endpoint'leri kimliği doğrulanmış principal veya istemci IP'si başına
-sabit pencerede dakikada 100 istekle sınırlıdır. Limit aşımı `429 Too Many
-Requests` döndürür. Bu değer abuse korumasının ilk katmanıdır; gerçek production
-değeri trafik ve SLO ölçümleriyle belirlenmelidir.
+Business endpoints allow 100 requests per minute in a fixed window, partitioned
+by authenticated principal or client IP. Exceeding the limit returns
+`429 Too Many Requests`. This is a first abuse-control layer; production
+values must be calibrated from traffic and SLO evidence.
 
-Rate limiting domain concurrency kontrolünün yerine geçmez. `xmin` ve
-aggregate invariant'ları hâlâ son doğruluk sınırıdır.
+Rate limiting does not replace domain concurrency control. PostgreSQL `xmin`
+checks and Aggregate invariants remain the final consistency boundary.
 
 ## Security
 
-Sistemde henüz insan kullanıcı, tenant veya identity bounded context'i yoktur.
-Bu yüzden sahte bir kullanıcı/rol modeli icat edilmedi. Mevcut API,
-machine-to-machine kullanım için API key authentication uygular.
+The current domain has no human-user, tenant, or Identity bounded context.
+Inventing a fake role model would add ceremony without a requirement, so the
+API uses machine-to-machine API-key authentication.
 
-İki authorization scope vardır:
+Two authorization scopes exist:
 
 - `equipment-rental.read`
 - `equipment-rental.write`
 
-GET business endpoint'leri read; state değiştiren endpoint'ler write policy
-ister. Key karşılaştırması SHA-256 digest üzerinde constant-time yapılır.
-Anahtarlar production configuration'a commit edilmez; environment variable veya
-secret store üzerinden verilir.
+GET business endpoints require read access; state-changing endpoints require
+write access. Keys are compared in constant time using SHA-256 digests.
+Production keys are supplied through environment variables or a secret store
+and are never committed.
 
-Development dosyasındaki anahtarlar yalnızca local kullanım içindir.
-Docker Compose anahtarları `.env` üzerinden override eder. `.env.example`
-gerçek secret içermez.
+Development keys are for local use only. Docker Compose reads overrides from
+`.env`, while `.env.example` contains no real secret.
 
-API key yaklaşımının bilinçli sınırları:
+Known limits of the current approach:
 
-- son kullanıcı kimliği ve delegated authorization sağlamaz;
-- key rotation/revocation yönetim API'si yoktur;
-- transport seviyesinde TLS üretmez.
+- it provides no end-user identity or delegated authorization;
+- it has no key rotation or revocation API; and
+- it does not provide transport-level TLS.
 
-İnsan kullanıcı, tenant ve fine-grained permission gereksinimi ortaya çıktığında
-OIDC/OAuth 2.0 JWT doğrulamasına geçilmelidir. TLS, ingress/reverse proxy
-sorumluluğudur.
+When human users, tenants, or fine-grained permissions become requirements,
+the API should adopt OIDC/OAuth 2.0 JWT validation. TLS belongs at the ingress
+or reverse proxy.
 
 ## Containerized local environment
 
-Multi-stage Dockerfile:
+The multi-stage Dockerfile:
 
-1. SDK image içinde restore ve Release publish;
-2. ayrı migration target'ında beş DbContext migration'ı;
-3. non-root ASP.NET runtime image.
+1. restores and publishes Release output in the SDK image;
+2. provides a separate migration target for all five DbContexts; and
+3. produces a non-root ASP.NET runtime image.
 
-Compose sırası:
+Compose starts services in this order:
 
 ```text
 PostgreSQL healthy
-    → one-shot migrations completed
+    → one-shot migrations complete
     → API starts
 ```
 
-API başlangıcında otomatik migration yapılmaz. Bu, birden fazla replica'nın
-aynı anda schema değiştirme yarışını engeller ve deployment adımını görünür
-kılar.
+The API does not migrate automatically at startup. This prevents multiple
+replicas from racing to change the schema and keeps migration as an explicit
+deployment step.
 
 ```bash
 cp .env.example .env
-# .env içindeki iki anahtarı değiştir
+# Replace both example keys in .env
 docker compose up --build
 ```

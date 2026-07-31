@@ -1,50 +1,49 @@
 # Notifications Bounded Context
 
-## Amaç
+## Purpose
 
-Notifications, başka context'lerde gerçekleşen iş olaylarını müşteri iletişim
-işlerine dönüştüren supporting subdomain'dir. Kiralama kurallarını, kapasiteyi
-veya müşteri uygunluğunu sahiplenmez.
+Notifications is a supporting subdomain that turns business events from other
+contexts into customer-communication work. It does not own rental rules,
+capacity, or customer eligibility.
 
-İlk kullanım senaryosu:
+Initial use case:
 
 ```text
 RentalOrderConfirmedV1
-  → rental-order-confirmed template'i için pending work item
+  → pending work item for the rental-order-confirmed template
 ```
 
-## Neden rich domain model yok?
+## Why there is no rich Domain Model
 
-Mevcut davranış basit bir transaction script'tir:
+Current behavior is a simple Transaction Script:
 
-1. contract alanlarını doğrula;
-2. notification work item oluştur;
-3. Inbox ile birlikte commit et.
+1. validate contract fields;
+2. create a notification work item; and
+3. commit it with the Inbox record.
 
-Aggregate veya Value Object eklemek şu aşamada gerçek bir invariant çözmez.
-Template seçimi, kanal tercihleri, quiet hours, localization veya retry
-politikaları karmaşıklaştığında daha zengin model değerlendirilecektir.
+Adding an Aggregate or Value Object would not protect a real invariant today.
+Reconsider a richer model when template selection, channel preferences, quiet
+hours, localization, or retry policies become complex.
 
-## Context sınırı
+## Context boundary
 
-- Application, Rentals'ı referans etmez.
-- Infrastructure yalnızca Rentals Contracts assembly'sini tüketir.
-- Rental domain tipleri Notifications'a girmez.
-- Customer ve Rental Order kimlikleri Notifications açısından harici
-  referanslardır.
+- Application does not reference Rentals.
+- Infrastructure consumes only the Rentals Contracts assembly.
+- Rental domain types do not enter Notifications.
+- Customer and Rental Order identities are external references.
 
-## Veri sahipliği
+## Data ownership
 
-Notifications kendi PostgreSQL schema'sına sahiptir:
+Notifications owns its PostgreSQL schema:
 
 - `inbox_messages`
 - `notification_work_items`
 - `__ef_migrations_history`
 
-Başka bir context bu tablolara yazamaz.
+No other context may write these tables.
 
-## İdempotency
+## Idempotency
 
-Inbox anahtarı `(consumer, message_id)` çiftidir. Sequential ve concurrent
-duplicate teslimatlar tek notification work item üretir. Business işlemi
-başarısızsa Inbox da rollback olur.
+The Inbox key is `(consumer, message_id)`. Sequential and concurrent duplicate
+deliveries produce one notification work item. If business handling fails, the
+Inbox change rolls back with it.

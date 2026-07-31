@@ -1,36 +1,36 @@
-# ADR-0004 — İlk aşamada mediator yerine açık use-case handler'ları
+# ADR-0004 — Prefer Explicit Use-Case Handlers Initially
 
-- Durum: Accepted
-- Tarih: 2026-07-31
+- Status: Accepted
+- Date: 2026-07-31
 
-## Bağlam
+## Context
 
-Command ve Query ayrımı mimari bir kavramdır. MediatR benzeri bir paket ise bu
-çağrıları yönlendiren teknik mekanizmadır.
+Separating Commands from Queries is an architectural concept. A package such
+as MediatR is only a technical dispatch mechanism for those calls.
 
-İlk dikey dilimde henüz pipeline behavior, dinamik handler keşfi veya modüller
-arası dispatch gereksinimi yoktur.
+The first vertical slice does not need pipeline behaviors, dynamic handler
+discovery, or cross-module dispatch.
 
-## Karar
+## Decision
 
-Her kullanım senaryosu açık bir handler sınıfıyla temsil edilir ve API
-composition root tarafından doğrudan enjekte edilir.
+Represent each use case with an explicit handler class and inject it directly
+from the API composition root.
 
-## Olumlu sonuçlar
+## Positive consequences
 
-- Çağrı akışı ve bağımlılıklar görünürdür.
-- Domain öğrenimi framework terminolojisinin arkasında kalmaz.
-- Daha az bağımlılık ve daha hızlı başlangıç.
-- İleride mediator ekleme veya eklememe kararı geri döndürülebilir.
+- Call flow and dependencies remain visible.
+- Framework terminology does not obscure domain learning.
+- Fewer dependencies keep the initial implementation small.
+- Introducing a mediator later remains a reversible decision.
 
-## Olumsuz sonuçlar
+## Negative consequences
 
-- Cross-cutting behavior'lar şimdilik merkezi pipeline'a sahip değildir.
-- Handler sayısı arttığında composition kodu büyüyebilir.
+- Cross-cutting behaviors do not yet have a central pipeline.
+- Composition code can grow with the number of handlers.
 
-## Yeniden değerlendirme koşulları
+## Reconsider when
 
-- Transaction, authorization, logging veya validation için tekrarlı pipeline
-  gereksinimi
-- Modül içi handler keşfinin elle yönetilemez hâle gelmesi
-- In-process command/event dispatch'in açık değer üretmesi
+- Transactions, authorization, logging, or validation require repeated
+  pipeline behavior.
+- Manual handler discovery becomes unmanageable.
+- In-process command or event dispatch provides demonstrable value.

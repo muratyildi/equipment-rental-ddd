@@ -1,29 +1,26 @@
 # CQRS Availability Calendar
 
-Bu milestone, CQRS'yi “iki veritabanı kurmak” veya “MediatR eklemek” olarak
-değil, aynı iş gerçeği için farklı amaçlara sahip iki model kullanmak olarak
-uygular.
+This implementation treats CQRS as two purpose-specific models for the same
+business facts—not as “two databases” or “add MediatR.”
 
 ## Problem
 
-`AvailabilitySchedule` aggregate'i şu komutu güvenli biçimde cevaplamak için
-tasarlandı:
+`AvailabilitySchedule` answers a decision question:
 
-> Bu dönem ve miktar için, mevcut taahhütleri bozmadan yeni bir commitment
-> kabul edilebilir mi?
+> Can this quantity be committed for this period without violating existing
+> commitments?
 
-Bu karar modeli bütün commitment'ları yükler, çakışan dönemlerdeki en yüksek
-eşzamanlı kullanımı hesaplar ve overbooking invariant'ını aynı transaction
-içinde korur. Fakat kullanıcı arayüzünün istediği soru farklıdır:
+It loads commitments, computes peak overlapping use, and protects the
+overbooking invariant in one transaction. The calendar asks a different
+question:
 
-> Belirli kategori ve lokasyonda, önümüzdeki 30 günün her birinde toplam,
-> taahhüt edilmiş ve müsait miktar nedir?
+> For every day in the next 30 days, what are the total, committed, and
+> available quantities for this category and location?
 
-Takvim sorgusu için aggregate'i yükleyip her gün aynı domain hesabını tekrar
-çalıştırmak sorgu maliyetini commitment sayısına bağlar, persistence modelini
-API yanıtına sızdırır ve karar modeliyle sunum modelini aynı şekle zorlar.
+Recomputing that view through the aggregate couples query cost to commitment
+volume and forces a decision model into a presentation shape.
 
-## Seçilen model
+## Selected model
 
 ```mermaid
 flowchart LR
@@ -37,65 +34,49 @@ flowchart LR
     QUERY --> READDB
 ```
 
-| Model | Amaç | Saklama şekli | Tutarlılık |
+| Model | Purpose | Storage | Consistency |
 |---|---|---|---|
-| `AvailabilitySchedule` | Yeni commitment'ın kabul edilip edilemeyeceğine karar vermek | Aggregate + commitment'lar | Strong consistency |
-| Availability Calendar | Gün bazında hızlı görüntüleme | Denormalize günlük satırlar | Eventual consistency |
+| `AvailabilitySchedule` | Decide whether to accept a commitment | Aggregate and commitments | Strong |
+| Availability Calendar | Fast daily display | Denormalized daily rows | Eventual |
 
-Bu ayrım bir microservice sınırı değildir. İki model aynı bounded context,
-uygulama ve PostgreSQL instance'ında çalışır; ayrı schema ve DbContext veri
-sahipliğini ve bağımsız migration yaşam döngüsünü görünür kılar.
+This is not a microservice boundary. Both models remain inside Fleet
+Availability and the same deployment/PostgreSQL instance. Separate schemas and
+DbContexts make ownership and migration lifecycles explicit.
 
-## Projection tabloları
+## Projection tables
 
-`fleet_availability_read` schema'sı üç tablo içerir:
+The `fleet_availability_read` schema contains:
 
-- `availability_schedules`: kategori/lokasyon için toplam kapasite;
-- `availability_days`: `(schedule_id, date)` başına committed miktar;
-- `inbox_messages`: consumer ve message id başına işlenmiş mesaj kaydı.
+- `availability_schedules`: total capacity by category/location;
+- `availability_days`: committed quantity by `(schedule_id, date)`; and
+- `inbox_messages`: processed message identity by consumer.
 
-Gün satırında `available_quantity` saklanmaz. Sorguda
-`total_capacity - committed_quantity` olarak hesaplanır. Böylece aynı türetilmiş
-değer iki kolonda tutulup birbirinden kopamaz.
+`available_quantity` is calculated as total minus committed so two stored
+derived values cannot drift. Daily rows deliberately have no foreign key to
+the schedule row because broker partitions or retry can deliver a commitment
+before capacity. The delta can be stored first; the view becomes queryable when
+capacity arrives.
 
-`availability_days` tablosundan schedule tablosuna bilinçli olarak foreign key
-yoktur. Message transport farklı partition veya retry davranışları nedeniyle
-commitment olayını capacity olayından önce teslim edebilir. Günlük delta önce
-yazılabilir; capacity olayı geldiğinde takvim sorgulanabilir hâle gelir.
+## Published contracts and dependency boundary
 
-## Olay sözleşmeleri ve bağımlılık sınırı
-
-Projection yalnızca Fleet Availability'nin yayımlanmış, sürümlü sözleşmelerini
-tüketir:
+The projection consumes only Fleet's versioned contracts:
 
 - `fleet-availability.availability-capacity-defined.v1`
 - `fleet-availability.equipment-availability-committed.v1`
 - `fleet-availability.equipment-availability-released.v1`
 
-Read model Domain, Application veya Infrastructure assembly'lerine referans
-vermez. Bu sınır architecture test ile korunur. Böylece projection aggregate
-nesnesini “kolaylık olsun” diye doğrudan okuyamaz.
+The Read Model references no Fleet Domain, Application, or Infrastructure
+assembly. Architecture tests enforce this. The consumer also verifies that the
+envelope and payload event IDs match.
 
-Her event'in `EventId` değeri Outbox message id ile aynıdır. Consumer envelope
-id ile payload id'nin eşleştiğini doğrular; bozuk bir mesaj sessizce
-uygulanmaz.
+## Idempotency and atomicity
 
-## Idempotency ve atomiklik
+In one local transaction, the consumer checks `(consumer, message_id)`, applies
+an unseen projection change, records the Inbox row, and commits both. Daily
+deltas use PostgreSQL `INSERT ... ON CONFLICT DO UPDATE`. Sequential and
+concurrent duplicate delivery cannot apply a delta twice.
 
-Outbox at-least-once teslimat sağlar; aynı mesajın tekrar gelmesi hata değil,
-beklenen davranıştır. Projection consumer tek local transaction içinde:
-
-1. `(consumer, message_id)` Inbox kaydını kontrol eder;
-2. daha önce görülmediyse projection değişikliğini uygular;
-3. Inbox kaydını ekler;
-4. ikisini birlikte commit eder.
-
-Commitment, kapsadığı her tarih için PostgreSQL `INSERT ... ON CONFLICT DO
-UPDATE` ile atomik delta uygular. Aynı event tekrar gelirse Inbox nedeniyle
-delta ikinci kez uygulanmaz. Eşzamanlı duplicate teslimatta kaybeden transaction
-unique conflict sonrası yeniden okuyup mesajın zaten işlendiğini görür.
-
-## Sorgu davranışı
+## Query behavior
 
 ```http
 GET /api/fleet-availability/calendar
@@ -105,50 +86,36 @@ GET /api/fleet-availability/calendar
     &endDateExclusive=2030-08-13
 ```
 
-- Aralık half-open `[startDate, endDateExclusive)` biçimindedir.
-- En az 1, en fazla 366 gün istenebilir.
-- Capacity projection henüz yoksa `404 Not Found` döner.
-- Commitment olmayan günler fiziksel satır gerektirmez; sorgu onları
-  `committedQuantity = 0` olarak tamamlar.
-- Sonuç her gün için total, committed ve available miktarı döndürür.
+- The interval is half-open: `[startDate, endDateExclusive)`.
+- Requests cover 1–366 days.
+- Missing capacity projection returns `404 Not Found`.
+- Days with no commitments are synthesized with `committedQuantity = 0`.
+- Each result contains total, committed, and available quantity.
 
-Komut başarıyla tamamlandıktan hemen sonra sorgunun eski state göstermesi
-eventual consistency'nin doğal maliyetidir. İstemci kısa süreli retry/polling
-uygulayabilir; karar gerektiren yeni bir commitment için read model'e
-güvenilmez, daima aggregate çağrılır.
+Immediately after a successful command, queries can briefly show old state.
+Clients may poll; new commitment decisions must always use the aggregate, never
+the read model.
 
-## Neden MediatR ve Event Sourcing yok?
+## CQRS without MediatR or Event Sourcing
 
-CQRS, command ve query modellerini ayıran bir tasarım ilkesidir. MediatR bir
-dispatch kütüphanesi, Event Sourcing ise state'i event geçmişinden kuran ayrı
-bir persistence yaklaşımıdır. Hiçbiri CQRS'nin önkoşulu değildir.
+CQRS separates command and query models. MediatR is a dispatch library; Event
+Sourcing reconstructs state from event history. Neither is a prerequisite.
+Explicit handlers keep call flow visible, and the write model stores current
+state. Integration Events exist for integration/projection, not as a complete
+event-sourced aggregate history.
 
-Bu projede açık handler injection çağrı akışını görünür tutuyor. Write model
-normal current-state tablolarında saklanıyor; Integration Event'ler entegrasyon
-ve projection güncelleme amacı taşıyor, aggregate'in eksiksiz event-sourced
-geçmişi değiller.
+## Rebuild and missing events
 
-## Rebuild ve eksik olaylar
+Projection data is derived and should be rebuildable. The current in-process
+transport is not a durable event log, so production rebuild needs sufficient
+Outbox retention, broker replay, or a checkpoint/rebuild tool. Release events
+decrement daily committed quantity. Future capacity changes or cancellations
+must introduce backward-compatible events rather than editing read tables and
+hiding the domain fact.
 
-Projection türetilmiş veridir; gerektiğinde silinip yayımlanmış event'lerden
-yeniden kurulabilmelidir. Mevcut in-process transport kalıcı event log değildir.
-Production rebuild için Outbox retention süresi, broker replay kabiliyeti veya
-ayrı projection checkpoint/rebuild aracı gerekir.
+## Evidence
 
-Commitment release artık ayrı bir iş olgusu olarak yayımlanır ve projection
-günlük committed miktarını azaltır. Capacity değiştirme veya schedule
-cancellation davranışı henüz yoktur. Bunlar eklendiğinde yeni, geriye uyumlu
-event sözleşmeleriyle projection genişletilmelidir; read tablosuna doğrudan
-düzeltme yazmak domain gerçeğini gizler.
-
-## Kanıtlayan testler
-
-`AvailabilityCalendarProjectionTests` gerçek PostgreSQL üzerinde şunları
-kanıtlar:
-
-1. Capacity ve commitment event'leri günlük takvimi oluşturur.
-2. Aynı commitment event'i iki kez teslim edilse de miktar iki kez artmaz.
-3. Commitment capacity'den önce gelse bile projection sonunda doğru olur.
-4. Release event'i kapasiteyi geri getirir ve duplicate release güvenlidir.
-5. Fleet Outbox'tan gerçek teslimat takvimi günceller ve mesajları processed
-   olarak işaretler.
+`AvailabilityCalendarProjectionTests` prove on real PostgreSQL that capacity
+and commitment events build the calendar, duplicates are harmless, reversed
+delivery converges, release restores capacity, and the real Fleet Outbox flow
+marks delivered messages as processed.

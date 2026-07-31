@@ -1,196 +1,189 @@
 # Service Extraction Playbook
 
-Bu belge bugünkü deployment planı değildir. Ölçülmüş bir sürücü
-[değerlendirme eşiklerini](service-extraction-assessment.md) aşarsa izlenecek
-güvenli geçiş yoludur.
+This is not today's deployment plan. It is the safe migration path to use only
+when a measured driver crosses the
+[assessment thresholds](service-extraction-assessment.md).
 
-## Temel ilkeler
+## Principles
 
-1. Bounded context sınırı deployment değişmeden önce zaten mevcut olmalıdır.
-2. Veri tek bir context tarafından yazılmalıdır.
-3. Database dual-write yapılmamalıdır.
-4. İç domain modeli wire contract olarak yayımlanmamalıdır.
-5. Network çağrısı local method call gibi davranıyormuş kabul edilmemelidir.
-6. Cutover küçük, gözlemlenebilir ve geri alınabilir olmalıdır.
-7. Eski yol, yeni yol kanıtlanmadan kaldırılmamalıdır.
+1. The Bounded Context boundary exists before deployment changes.
+2. One context owns every write.
+3. Application code never dual-writes two databases.
+4. Internal Domain Models are not wire contracts.
+5. A network call is not treated like a local method call.
+6. Cutover is incremental, observable, and reversible.
+7. The old path remains until the new path is proven.
 
-## Ortak geçiş aşamaları
+## Common migration stages
 
-### 0. Kararı doğrula
+### 0. Validate the decision
 
-- Hard driver ve baseline kaydedilir.
-- “Daha ucuz çözüm neden yeterli değil?” sorusu cevaplanır.
-- Context sahibi, SLO, hata bütçesi ve on-call sorumluluğu belirlenir.
-- Extraction ADR'si `Proposed` olarak açılır.
+- Record the hard driver and its baseline.
+- Explain why a cheaper option is insufficient.
+- Assign context ownership, SLO, error budget, and on-call responsibility.
+- Open an extraction ADR with `Proposed` status.
 
-### 1. Sözleşmeyi sabitle
+### 1. Stabilize contracts
 
-- Command/request ve Integration Event şemaları versionlanır.
-- Consumer-driven contract testleri eklenir.
-- Idempotency anahtarları ve retry semantiği belgelenir.
-- Breaking change için parallel version ve sunset politikası tanımlanır.
+- Version command/request and Integration Event schemas.
+- Add contract compatibility tests.
+- Document idempotency keys and retry semantics.
+- Define parallel-version and sunset policies for breaking changes.
 
-Monolit içindeki `.Contracts` assembly'si tasarım sınırını gösterir. Ayrı
-deployment sonrasında bu assembly'yi iki servisin birlikte release edilmesini
-gerektiren ortak domain paketi hâline getirmeyiz. Wire schema; OpenAPI,
-AsyncAPI, Protobuf veya açık JSON schema olarak bağımsız versionlanır.
+The in-process `.Contracts` assembly expresses today's design boundary. After
+extraction, do not force two services to release the same binary together.
+Publish an independently versioned JSON Schema, AsyncAPI, or Protobuf contract.
 
-### 2. Transport adapter'ını ekle
+### 2. Add a transport adapter
 
-Consumer-owned port korunur. Local adapter'ın yanına remote adapter gelir:
+Keep the consumer-owned port and place a remote adapter beside the local one:
 
 ```text
 Rentals Application
-        |
-IEquipmentAvailabilityGateway
-        |
-        +-- InProcess adapter
-        +-- Remote adapter
+    → IEquipmentAvailabilityGateway
+        ├─ InProcessFleetAvailabilityGateway
+        └─ RemoteFleetAvailabilityGateway
 ```
 
-Feature flag composition root'ta hangi adapter'ın kullanılacağını seçer.
-Domain ve Application transport bilgisini öğrenmez.
+A feature flag in the composition root chooses the adapter. Domain and
+Application layers remain unaware of transport.
 
-### 3. Veriyi ayır
+### 3. Separate data
 
-- Context schema'sı bağımsız database'e kopyalanır.
-- Başka context'ten foreign key veya doğrudan SQL olmadığı doğrulanır.
-- Snapshot + change stream/backfill yöntemi seçilir.
-- Reconciliation raporu hazırlanır.
-- Cutover'dan sonra yalnızca yeni servis yazma sahibi olur.
+- Copy the context schema to an independent database.
+- Verify no foreign key or direct SQL crosses context boundaries.
+- Choose snapshot plus change-stream/backfill mechanics.
+- Produce a reconciliation report.
+- After cutover, only the new service writes its data.
 
-Aynı business değişikliğini iki database'e uygulama koduyla yazmak yasaktır.
-İkinci tarafta gerekli model Integration Event ile türetilir.
+Never update two databases for one business change in application code. A
+consumer derives its local model from an Integration Event.
 
-### 4. Shadow ve canary doğrulama
+### 4. Shadow and canary
 
-- Read-only veya karar karşılaştırması yapılabiliyorsa remote sonuç shadow
-  olarak alınır; kullanıcı sonucunu değiştirmez.
-- Sonuç farkları primitive kimlik ve correlation ID ile kaydedilir.
-- Küçük trafik yüzdesi yeni servise yönlendirilir.
-- Latency, error, saturation ve business outcome karşılaştırılır.
+- When possible, compare a remote read or decision in shadow mode without
+  changing the user result.
+- Log differences with primitive identifiers and correlation IDs.
+- Route a small traffic percentage to the new service.
+- Compare latency, errors, saturation, and business outcomes.
 
-State-changing command'lerde aynı komutu iki sisteme kontrolsüz uygulamayız.
-Idempotent command ve açık reconciliation olmadan shadow write yapılmaz.
+Do not apply a state-changing command to both systems without explicit
+idempotency and reconciliation.
 
-### 5. Cutover
+### 5. Cut over
 
-- Producer/consumer sırası backward-compatible contract'a göre planlanır.
-- Traffic kademeli artırılır.
-- Outbox lag, Inbox duplicate, timeout ve business rejection ayrı ölçülür.
-- Eski adapter rollback süresi boyunca kullanılabilir kalır.
+- Sequence producers and consumers using backward-compatible contracts.
+- Increase traffic gradually.
+- Measure Outbox lag, Inbox duplicates, timeouts, and business rejections
+  separately.
+- Keep the old adapter available during the rollback window.
 
-### 6. Temizlik
+### 6. Remove the old path
 
-- Stabilizasyon penceresi tamamlanınca local adapter kaldırılır.
-- Eski schema read-only tutulur, sonra retention politikasına göre arşivlenir.
-- Mimari testler yeni sınırı yansıtacak şekilde sıkılaştırılır.
-- ADR `Accepted` yapılır ve gerçek sonuçlar kaydedilir.
+- Delete the local adapter after the stabilization window.
+- Make the old schema read-only, then archive it under the retention policy.
+- Tighten architecture tests to reflect the new boundary.
+- Mark the ADR `Accepted` and record measured results.
 
-## Fleet Availability çıkarma planı
+## Fleet Availability extraction
 
-### Neden özel dikkat gerekir?
+### Why it needs special care
 
-Rentals, commitment sonucunu confirmation'a devam etmek için bilmek zorundadır.
-Bu nedenle commit/release bir request-response konuşmasıdır. Ayrı process
-sonrasında üç sonuç vardır:
+Rentals must know whether a commitment succeeded before confirmation can
+continue. Once remote, every commit/release request has three outcomes:
 
-1. Açık kabul veya ret alındı.
-2. Çağrı Fleet'e hiç ulaşmadı.
-3. Fleet commit etti fakat cevap kayboldu.
+1. explicit acceptance or rejection;
+2. the request never reached Fleet; or
+3. Fleet committed it but the response was lost.
 
-Üçüncü durumda “timeout = başarısız” denemez. Aynı `DemandId` ile tekrar çağrı,
-Fleet'in idempotent davranışı sayesinde önceki sonucu döndürmelidir.
+A timeout is therefore not equivalent to failure. Retrying with the same
+`DemandId` must return the previous idempotent result.
 
-### Hedef iletişim
+### Target communication
 
-- Commit/release: timeout'lu senkron HTTP veya gRPC adapter.
-- Capacity/commitment facts: durable broker üzerinden Integration Event.
-- Her request: correlation ID ve stable `DemandId`.
-- Retry: yalnızca idempotent operation, bounded exponential backoff.
-- Circuit breaker: hızlı hata için; business rejection ile karıştırılmaz.
-- Process Manager: belirsiz teknik sonucu retry eder, bütçe bitince
-  `RequiresIntervention` durumuna geçer.
+- Commit/release decisions: synchronous request/response with bounded timeout.
+- Capacity and commitment facts: durable Integration Events through a broker.
+- Every request: correlation ID and stable `DemandId`.
+- Retry: idempotent operations only, with bounded exponential backoff.
+- Circuit breaker: technical fast-failure, never a business rejection.
+- Process Manager: retries ambiguous outcomes and moves to
+  `RequiresIntervention` when the budget is exhausted.
 
-### Cutover sırası
+### Cutover sequence
 
-1. Fleet'i aynı contract semantiğiyle bağımsız host'ta çalıştır.
-2. Ayrı Fleet database'ine migration ve veri doğrulaması yap.
-3. Remote gateway'i Rentals composition root'una ekle.
-4. Read-only availability sorgularını canary olarak taşı.
-5. İdempotent commit/release çağrılarını düşük trafikle taşı.
-6. Fleet Integration Event'lerini broker'a geçir.
-7. Reconciliation sonrası in-process gateway'i kaldır.
+1. Run Fleet in an independent host with unchanged contract semantics.
+2. Migrate and reconcile data into a Fleet-owned database.
+3. Add the remote gateway behind a feature flag.
+4. Canary read-only availability queries.
+5. Canary idempotent commit/release calls.
+6. Publish Fleet Integration Events through the broker.
+7. Remove the in-process gateway after reconciliation and stabilization.
 
 ### Rollback
 
-- Remote adapter feature flag ile kapatılır.
-- Yazma sahipliği cutover edilmişse eski database'e körlemesine dönülmez.
-- Fleet servisi ayakta, deployment geri alınır veya traffic eski API
-  versiyonuna yönlendirilir.
-- Veri reconciliation tamamlanmadan ownership geri taşınmaz.
+- Disable the remote adapter feature flag.
+- Do not blindly return writes to the old database after ownership cutover.
+- Keep Fleet running while rolling back the caller or routing traffic to the
+  previous API version.
+- Never transfer ownership back before reconciliation completes.
 
-## Notifications çıkarma planı
+## Notifications extraction
 
-### Neden daha düşük riskli?
+### Why it is lower risk
 
-Rentals notification sonucunu beklemez. `RentalOrderConfirmedV1` zaten
-versionlanmış, Outbox mesajı stable ID taşır ve Notifications Inbox duplicate
-etkiyi engeller.
+Rentals does not wait for notification delivery. The event is already
+versioned, its Outbox message has a stable ID, and the Notifications Inbox
+deduplicates at-least-once delivery.
 
-### Hedef iletişim
+### Target communication
 
 ```text
 Rentals transaction
-  -> Rentals Outbox
-  -> durable broker
-  -> Notifications consumer
-  -> Notifications Inbox + work item transaction
+    → Rentals Outbox
+    → durable broker
+    → Notifications worker
+    → Inbox + notification work item transaction
 ```
 
-Broker acknowledgement yalnızca Inbox ve work item commit edildikten sonra
-verilir. Poison message retry bütçesi sonunda dead-letter'a gider. Event
-redelivery normal kabul edilir.
+The broker is acknowledged only after Inbox and work item commit. Poison
+messages move to a dead-letter path after a bounded retry budget, while event
+identity remains unchanged for replay.
 
-### Cutover sırası
+### Cutover sequence
 
-1. Broker publisher adapter'ını `IIntegrationEventPublisher` arkasına ekle.
-2. Notifications consumer'ını bağımsız worker olarak deploy et.
-3. Kendi database/schema migration'ını çalıştır.
-4. Aynı event'in local ve remote etkisini kontrollü test ortamında karşılaştır.
-5. Production publisher'ı broker'a geçir.
-6. Inbox count, duplicate count, oldest-message age ve dead-letter metriğini
-   izle.
-7. Stabilizasyon sonrası local consumer registration'ını kaldır.
+1. Add a broker publisher behind `IIntegrationEventPublisher`.
+2. Deploy the Notifications consumer as an independent worker.
+3. Apply its database/schema migration.
+4. Compare local and remote effects in a controlled environment.
+5. Switch the production publisher to the broker.
+6. monitor Inbox count, duplicates, oldest-message age, and dead letters.
+7. Remove local consumer registration after stabilization.
 
 ### Rollback
 
-- Broker'daki event'ler kaybedilmez; consumer deployment geri alınabilir.
-- Eski local consumer yalnızca aynı event stream tek owner tarafından
-  tüketilecek şekilde tekrar açılır.
-- Inbox anahtarı aynı kaldığı için replay duplicate work item üretmez.
+- Keep broker events durable while rolling back the consumer.
+- Re-enable the old consumer only when exactly one owner reads the event stream.
+- Preserve the Inbox identity so replay cannot create duplicate work.
 
-## Availability Calendar hakkında
+## Availability Calendar
 
-Projection'ı ayrı process'te çalıştırmak, onu otomatik olarak ayrı bounded
-context yapmaz. Yüksek read trafiği oluşursa önce projection worker veya query
-host'u ayrı deploy edilebilir. Model sahipliği yine Fleet Availability'de
-kalabilir.
-
-Bu ayrım önemlidir:
+Running a projection in another process does not automatically make it a
+separate Bounded Context. If read traffic grows, deploy the projection worker
+or query host independently while Fleet Availability retains model ownership.
 
 ```text
-ayrı process ≠ yeni bounded context
-ayrı bounded context ≠ zorunlu ayrı process
+separate read model ≠ separate bounded context
+separate process    ≠ new bounded context
+bounded context     ≠ mandatory separate process
 ```
 
-## Extraction tamamlanma ölçütleri
+## Completion criteria
 
-- Eski code path kaldırılmıştır.
-- Tek write owner doğrulanmıştır.
-- Contract compatibility testleri geçmektedir.
-- SLO ve error budget dashboard'ları aktiftir.
-- Outbox/Inbox lag ve dead-letter runbook'u vardır.
-- Failure injection ile timeout, duplicate ve broker kesintisi denenmiştir.
-- Rollback provası kaydedilmiştir.
-- Operasyon maliyetinin kararda beklenen faydayı sağladığı gözlemlenmiştir.
+- The old code path is removed.
+- A single write owner is verified.
+- Contract compatibility tests pass.
+- SLO and error-budget dashboards are active.
+- Outbox/Inbox lag and dead-letter runbooks exist.
+- Failure injection covers timeouts, duplicates, and broker outages.
+- A rollback rehearsal is recorded.
+- Measured benefits justify the additional operational cost.

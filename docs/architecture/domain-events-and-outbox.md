@@ -1,48 +1,42 @@
-# Domain Event, Integration Event ve Transactional Outbox
+# Domain Events, Integration Events, and the Transactional Outbox
 
-Bu üç kavram aynı şey değildir:
+These concepts have different owners and purposes:
 
-| Kavram | Sahibi | Amacı | Kalıcılık |
+| Concept | Owner | Purpose | Persistence |
 |---|---|---|---|
-| Domain Event | Bounded Context domain modeli | Aggregate içinde gerçekleşen iş gerçeğini ifade etmek | Commit'e kadar aggregate üzerinde |
-| Integration Event | Yayımlayan Bounded Context | Başka context'lere kararlı sözleşme sunmak | Outbox payload'ı |
-| Outbox Message | Infrastructure | Integration Event'i güvenilir biçimde publish etme niyetini saklamak | Modül schema'sında tablo |
+| Domain Event | Bounded Context's Domain model | Express a business fact inside the model | Held by the aggregate until commit |
+| Integration Event | Publishing Bounded Context | Provide a stable contract to other contexts | Serialized as an Outbox payload |
+| Outbox Message | Infrastructure | Record the intent to publish reliably | Table in the module's schema |
 
-## 1. Akış
+## Flow
 
 ```text
 HTTP command
   → Application handler
-  → Aggregate davranışı
-  → Domain Event oluşur
+  → Aggregate behavior raises a Domain Event
   → SaveChanges
-      ├─ aggregate değişikliği
-      └─ sürümlü Integration Event Outbox INSERT'i
-         [aynı PostgreSQL transaction]
+      ├─ aggregate changes
+      └─ versioned Integration Event Outbox INSERT
+         [same PostgreSQL transaction]
   → commit
-  → background worker mesajı claim eder
-  → transport adapter publish eder
-  → processed_at_utc yazılır
+  → worker claims message
+  → transport adapter publishes
+  → processed_at_utc is recorded
 ```
 
-Aggregate broker'a mesaj göndermez, JSON üretmez ve Outbox tablosunu bilmez.
-Yalnızca kendi dilinde bir iş gerçeği oluşturur.
+The aggregate does not know about brokers, JSON, or the Outbox. It speaks only
+its own business language.
 
-## 2. Domain Event kimliği
+## Stable event identity
 
-Her event oluşturulduğunda bir `EventId` alır. Bu kimlik:
+Every event receives an `EventId` when it is created. The same value becomes
+the Outbox primary key, survives retries, supports consumer deduplication, and
+improves log/trace correlation. It does not make delivery exactly once; it
+makes duplicates recognizable.
 
-- Outbox primary key'i olur;
-- retry sırasında değişmez;
-- consumer inbox/deduplication kaydının anahtarı olabilir;
-- log ve trace korelasyonunu kolaylaştırır.
+## Selective publication
 
-`EventId` teslimatı exactly-once yapmaz. Duplicate'i tanınabilir yapar.
-
-## 3. Seçici mapping
-
-Rentals içindeki `RentalOrderDrafted` veya `RentalLineAdded` gibi her ara gerçek
-dışarı yayımlanmaz. Şu anda dış sözleşmeye çevrilen olaylar:
+Not every internal fact becomes public. Current mappings are:
 
 ```text
 RentalOrderConfirmed
@@ -52,77 +46,54 @@ EquipmentAvailabilityCommitted
   → fleet-availability.equipment-availability-committed.v1
 ```
 
-Integration contract assembly'leri Domain assembly'lerine referans vermez.
-Sözleşmeler `Guid`, `DateOnly`, `decimal`, `string` ve benzeri taşınabilir
-değerlerden oluşur.
+Contract assemblies do not reference Domain assemblies. Contracts contain
+portable primitives such as `Guid`, `DateOnly`, `decimal`, and `string`.
 
-## 4. Atomicity
+## Atomic persistence
 
-DbContext, tracked aggregate'lerin Domain Event'lerini `SaveChangesAsync`
-başında toplar. Seçilen event'leri Outbox entity'sine map eder. EF Core
-aggregate UPDATE/INSERT ile Outbox INSERT'i aynı transaction'da yürütür.
+At the start of `SaveChangesAsync`, each DbContext collects Domain Events from
+tracked aggregates and maps selected events to Outbox entities. EF Core writes
+aggregate and Outbox changes in one transaction.
 
-- Commit başarılıysa Domain Event listesi temizlenir.
-- Commit başarısızsa hem aggregate hem Outbox rollback olur.
-- Event listesi temizlenmediği için aynı context üzerinde güvenli retry
-  mümkündür.
-- Aynı `EventId` için ikinci tracked Outbox entity oluşturulmaz.
+- On success, Domain Events are cleared from the aggregate.
+- On failure, both writes roll back and events remain available for retry.
+- A second tracked Outbox entity is not created for the same `EventId`.
 
-Bu davranış gerçek PostgreSQL üzerinde duplicate aggregate key ile zorlanan
-rollback testiyle doğrulanır.
+A real PostgreSQL rollback test forces a duplicate aggregate key to prove this
+behavior.
 
-## 5. Claim ve çoklu worker
+## Multi-worker claiming
 
-Worker yalnızca:
+Workers select only messages that are unprocessed, due for retry, and either
+unclaimed or past their claim expiry. `claimed_by` and `claimed_until_utc` are
+updated under PostgreSQL `xmin` concurrency. If two workers read the same row,
+only one claim update succeeds. Claims are leases, not permanent locks; another
+worker can recover work after a crashed worker's lease expires.
 
-- henüz işlenmemiş;
-- retry zamanı gelmiş;
-- claim edilmemiş veya claim süresi dolmuş
+## Retry and dead-letter behavior
 
-mesajları seçer. Mesaj `claimed_by` ve `claimed_until_utc` ile işaretlenirken
-PostgreSQL `xmin` concurrency kontrolü kullanılır. İki worker aynı satırı okursa
-yalnızca biri claim UPDATE'ini tamamlayabilir.
+A publish failure does not roll back the original business transaction. It
+increments `attempts`, records `last_error`, clears the claim, and schedules
+`next_attempt_at_utc` with exponential backoff. After five failures,
+`DeadLetteredAtUtc` makes the message terminal and removes it from normal claim
+queries. Readiness reports this as `Degraded`; replay and retention still need
+an operator-controlled runbook.
 
-Claim kalıcı kilit değildir. Worker ölürse süre dolduğunda başka worker mesajı
-devralabilir.
-
-## 6. Retry
-
-Publish hatası business transaction'ını geri almaz. Outbox kaydında:
-
-- `attempts` artırılır;
-- `last_error` kaydedilir;
-- claim temizlenir;
-- `next_attempt_at_utc` exponential backoff ile ileri alınır.
-
-Bir mesaj beş başarısız publish denemesinden sonra `DeadLetteredAtUtc` ile
-terminal hâle gelir ve normal claim sorgusundan çıkar. Böylece poison message
-diğer mesajların işlenmesini sonsuza kadar engellemez. Readiness bu durumu
-`Degraded` olarak raporlar. Kontrollü replay ve retention politikası hâlâ
-operasyon runbook'u gerektirir.
-
-## 7. At-least-once neden duplicate üretebilir?
-
-Şu sıra kaçınılmaz bir failure penceresi taşır:
+## Why at-least-once can duplicate
 
 ```text
-broker publish başarılı
-  → process çöker
-  → processed_at_utc yazılamaz
-  → mesaj yeniden publish edilir
+broker publish succeeds
+  → process crashes
+  → processed_at_utc is not stored
+  → message is published again
 ```
 
-Bu nedenle Notifications consumer'ı, `EventId` değerini Inbox tablosunda
-notification work item ile atomik olarak kaydeder. Aynı mesaj yeniden gelirse
-ikinci kez iş etkisi oluşturmaz.
+Notifications therefore records the `EventId` in its Inbox atomically with the
+notification work item.
 
-## 8. Mevcut transport adapter'ı
+## Current transport boundary
 
-API şu anda local geliştirme için matching consumer'lara dispatch eden
-in-process transport adapter'ı kullanır. Adapter envelope'u structured log'a da
-yazar. Outbox, Inbox ve consumer transporttan bağımsızdır; RabbitMQ, Azure
-Service Bus veya Kafka kararı verildiğinde yalnızca publisher/receiver
-adapter'ları değişir.
-
-Bu bilinçli sınır, broker seçimini DDD'nin parçasıymış gibi göstermeden
-reliability modelini tamamlamamızı sağlar.
+For local development, an in-process adapter dispatches matching consumers and
+writes the envelope to structured logs. Outbox, Inbox, and consumers are
+transport-independent. Selecting RabbitMQ, Azure Service Bus, or Kafka changes
+publisher/receiver adapters, not the reliability model or Domain model.
