@@ -1,91 +1,73 @@
-# Idempotent Consumer ve Transactional Inbox
+# Idempotent Consumers and the Transactional Inbox
 
 ## Problem
 
-Outbox teslimatı at-least-once'tır. Aynı Integration Event'in birden fazla kez
-gelmesi istisna değil, beklenen dağıtık sistem davranışıdır.
+Outbox delivery is at least once. Receiving the same Integration Event more
+than once is expected distributed-systems behavior, not an exceptional case.
 
 ```text
-publish başarılı
-  → publisher process çöker
-  → Outbox processed işareti yazılamaz
-  → aynı EventId yeniden publish edilir
+publish succeeds
+  → publisher crashes
+  → Outbox completion is not stored
+  → the same EventId is published again
 ```
 
-Consumer duplicate mesajı tanımazsa notification, ödeme veya stok düşümü gibi
-yan etkiler tekrarlanabilir.
+Without deduplication, notification, payment, or inventory effects can repeat.
 
-## Notifications örneği
+## Notifications example
 
-`rentals.rental-order-confirmed.v1`, Notifications Infrastructure tarafından
-tüketilir:
+Notifications Infrastructure consumes
+`rentals.rental-order-confirmed.v1`:
 
 ```text
 IntegrationEventEnvelope
-  → Rentals published contract deserialize edilir
-  → Notifications consumer-owned adapter
+  → deserialize Rentals Published Contract
+  → Notifications-owned adapter
   → RequestRentalConfirmationNotification
   → transaction script
   → notification_work_items INSERT
 ```
 
-Notifications Application, Rentals'a referans vermez. Dış sözleşmeyi kendi
-komutuna çeviren adapter Infrastructure'dadır.
+Notifications Application does not reference Rentals. Translation from the
+external contract into its own command belongs to Infrastructure.
 
-## Transaction sınırı
+## Transaction boundary
 
-Consumer şu üç değişikliği aynı PostgreSQL transaction'ında yapar:
+The consumer commits three changes in one PostgreSQL transaction:
 
-1. `(consumer, message_id)` Inbox kaydı;
-2. notification work item;
-3. Inbox `processed_at_utc` işareti.
+1. Inbox row keyed by `(consumer, message_id)`;
+2. notification work item; and
+3. Inbox `processed_at_utc`.
 
-```text
-BEGIN
-  INSERT inbox_messages
-  INSERT notification_work_items
-  UPDATE inbox processed
-COMMIT
-```
+If business handling fails, everything rolls back and transport can retry.
 
-Business handler hata verirse transaction rollback olur. Inbox kaydı
-olmadığından mesaj yeniden denendiğinde tekrar işlenebilir.
-
-## Sequential duplicate
-
-Consumer önce kendi adı ve mesaj kimliğiyle Inbox'ı sorgular. Kayıt varsa iş
-etkisini tekrar çalıştırmadan başarıyla döner.
+## Sequential duplicates
 
 ```text
-ilk teslimat   → Inbox yok → work item oluştur → commit
-ikinci teslimat → Inbox var → no-op
+first delivery  → no Inbox row → create effect → commit
+next delivery   → Inbox row exists → successful no-op
 ```
 
-## Concurrent duplicate
+## Concurrent duplicates
 
-“Önce sorgula” tek başına yeterli değildir. İki transaction aynı anda Inbox
-yok sonucunu görebilir. Asıl doğruluk garantisi composite primary key'dir:
+Checking first is insufficient because two transactions can both observe no
+row. The composite primary key is the actual correctness guarantee:
 
 ```text
 PRIMARY KEY (consumer, message_id)
 ```
 
-Bir transaction kazanır. Diğeri unique violation alır, kendi transaction'ını
-rollback eder ve kazanan Inbox kaydını doğruladıktan sonra başarılı no-op olur.
+One transaction wins. The other receives a unique violation, rolls back, then
+confirms the winning Inbox row and returns a successful no-op.
 
-## Neden consumer adı anahtarın parçası?
+The consumer name belongs in the key because independent consumers can process
+the same message for different purposes. Idempotency scope is **consumer plus
+message**, not message alone.
 
-Aynı mesajı iki farklı consumer farklı amaçlarla işleyebilir. Yalnızca
-`message_id` kullanmak ilk consumer'ın diğerini yanlışlıkla engellemesine neden
-olur. İdempotency scope'u mesaj değil, **consumer + mesaj** çiftidir.
+## Effectively-once local effects
 
-## Exactly-once etkisi
-
-Transport exactly-once değildir. Fakat consumer'ın database içindeki etkisi,
-aynı `EventId` için bir kez uygulanır. Buna bazen “effectively once” denir.
-Garanti yalnızca Inbox ile aynı transaction'a katılan yerel database etkileri
-için geçerlidir.
-
-Harici e-posta sağlayıcısını transaction içinde çağırmak bu garantiyi bozar.
-Gerçek gönderim için notification work item ayrı bir güvenilir teslimat
-mekanizmasıyla işlenmelidir.
+Transport is not exactly once, but the consumer applies its local database
+effect once per `EventId`. This guarantee covers only effects committed in the
+same Inbox transaction. Calling an external email provider inside that
+transaction would break it; a separate reliable worker must deliver pending
+notification work items.

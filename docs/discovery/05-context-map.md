@@ -59,14 +59,14 @@ Billing domain.
 
 ### Rentals → Notifications
 
-Rentals, onaylanan kiralamayı sürümlü Published Language sözleşmesiyle yayımlar.
-Notifications bu sözleşmeye uyar fakat Rentals Domain modeline bağımlı olmaz;
-Infrastructure adapter event'i Notifications'ın kendi
-`RequestRentalConfirmationNotification` komutuna çevirir.
+Rentals publishes a confirmed rental through a versioned Published Language.
+Notifications conforms to that contract without depending on the Rentals
+Domain model; its Infrastructure adapter translates the event into the local
+`RequestRentalConfirmationNotification` command.
 
-Notifications supporting subdomain'dir. Mevcut iş kuralı basit olduğu için rich
-domain model yerine transaction script kullanır. Aynı event'in tekrar teslim
-edilmesi Inbox ile idempotent hâle getirilir.
+Notifications is a supporting subdomain. Its current rule is simple, so it
+uses a Transaction Script rather than a rich Domain Model. An Inbox makes
+repeated delivery of the same event idempotent.
 
 ## Data ownership rules
 

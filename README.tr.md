@@ -188,4 +188,4 @@ telemetry exporter adapter'ları, kontrollü replay/runbook ve diğer context'le
 - [Fleet Availability model açıklaması](docs/modules/fleet-availability.md)
 - [Notifications model açıklaması](docs/modules/notifications.md)
 - [Karar günlüğü](docs/decisions/README.md)
-- [DDD öğrenme notları](docs/learning/00-kaynak-incelemesi.md)
+- [DDD öğrenme notları (İngilizce)](docs/learning/00-source-review.md)

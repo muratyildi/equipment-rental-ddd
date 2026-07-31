@@ -216,10 +216,10 @@ Evans's *Domain-Driven Design* and Vlad Khononov's *Learning Domain-Driven
 Design*. The notes summarize and apply the ideas; they do not reproduce the
 copyrighted books.
 
-- [DDD source review](docs/learning/00-kaynak-incelemesi.md)
-- [Learning roadmap](docs/learning/01-yol-haritasi.md)
-- [Eric Evans's Blue Book](docs/learning/02-blue-book-incelemesi.md)
-- [Historical and integrated reading guide](docs/learning/03-tarihsel-ve-butunsel-okuma-rehberi.md)
+- [DDD source review](docs/learning/00-source-review.md)
+- [Learning roadmap](docs/learning/01-learning-roadmap.md)
+- [Eric Evans's Blue Book](docs/learning/02-blue-book-review.md)
+- [Historical and integrated reading guide](docs/learning/03-historical-and-integrated-reading-guide.md)
 
 ## License
 

@@ -1,72 +1,68 @@
-# ADR-0011: Availability Calendar için CQRS read model
+# ADR-0011 — Use a CQRS Read Model for the Availability Calendar
 
-- Durum: Accepted
-- Tarih: 2026-07-31
+- Status: Accepted
+- Date: 2026-07-31
 
-## Bağlam
+## Context
 
-`AvailabilitySchedule` aggregate'i overbooking'i önleyen bir karar modelidir.
-Takvim ekranı ise bir tarih aralığındaki her gün için toplam, committed ve
-müsait kapasiteyi istemektedir. Aggregate'i doğrudan sorgu modeli yapmak,
-yazma invariant'ı için seçilen yapıyı okuma biçimine bağımlı kılacaktır.
+`AvailabilitySchedule` is a decision model that prevents overbooking. The
+calendar needs total, committed, and available capacity per day. Using the
+aggregate as the query model would couple an invariant-oriented write shape to
+a different read concern.
 
-## Karar sürücüleri
+## Decision drivers
 
-- Aggregate sınırını ve strong consistency kararını korumak
-- Gün bazında sabit ve öngörülebilir sorgu maliyeti
-- At-least-once event teslimatında doğru sonuç
-- Bounded context sahipliğini bozmadan eventual consistency öğretmek
-- Gereksiz microservice, mediator ve Event Sourcing maliyetinden kaçınmak
+- Preserve the aggregate boundary and strong-consistency decision.
+- Keep per-day query cost predictable.
+- Remain correct under at-least-once delivery.
+- Demonstrate eventual consistency without breaking context ownership.
+- Avoid unnecessary microservices, mediators, and Event Sourcing.
 
-## Değerlendirilen seçenekler
+## Considered options
 
-1. Aggregate'i yükleyip takvimi her sorguda hesaplamak
-2. Write tablolarına özel SQL ile doğrudan sorgu yapmak
-3. Event'lerle güncellenen ayrı, denormalize read model
+1. Load the aggregate and calculate every query.
+2. Query write tables with specialized SQL.
+3. Maintain a separate denormalized read model from events.
 
-İlk seçenek sorguyu aggregate büyüklüğüne bağlar. İkinci seçenek daha hızlı
-olabilir fakat query'yi write schema'ya ve EF mapping ayrıntılarına bağlar.
-Üçüncü seçenek ek operasyonel maliyet karşılığında açık bir sorgu modeli ve
-bağımsız optimizasyon sağlar.
+The first scales with aggregate size. The second couples queries to the write
+schema and EF mappings. The third adds operational cost but provides an
+explicit, independently optimized query model.
 
-## Karar
+## Decision
 
-Fleet Availability bounded context'i içinde ayrı
-`EquipmentRental.Modules.FleetAvailability.ReadModel` projesi ve
-`fleet_availability_read` PostgreSQL schema'sı kullanılacaktır.
+Create `EquipmentRental.Modules.FleetAvailability.ReadModel` and the
+`fleet_availability_read` PostgreSQL schema inside the Fleet Availability
+bounded context.
 
-Projection, Fleet'in sürümlü `capacity-defined.v1` ve
-`availability-committed.v1` event'lerini tüketir. Transactional Inbox duplicate
-teslimatı etkisiz kılar. Takvim sorgusu yalnızca read-model DbContext'ini okur.
+The projection consumes Fleet's versioned `capacity-defined.v1` and
+`availability-committed.v1` events. A Transactional Inbox neutralizes duplicate
+delivery. Calendar queries read only the read-model DbContext.
 
-## Olumlu sonuçlar
+## Positive consequences
 
-- Write model invariant odaklı kalır.
-- Takvim sorgusu gün sayısıyla orantılı ve API ihtiyacına uygun olur.
-- Query tarafı Domain/Application/Infrastructure iç katmanlarından ayrıdır.
-- Eventual consistency, ordering ve duplicate delivery entegrasyon testleriyle
-  görünürdür.
-- Aynı bounded context içinde kalarak dağıtık sistem maliyeti ertelenir.
+- The write model remains invariant-focused.
+- Query cost follows the number of requested days.
+- The query side is independent of the internal write layers.
+- Integration tests expose eventual consistency, ordering, and duplicates.
+- Distributed deployment cost is deferred within the same bounded context.
 
-## Olumsuz sonuçlar ve riskler
+## Negative consequences and risks
 
-- Komut ile sorgu arasında kısa süreli gecikme vardır.
-- Dördüncü DbContext, schema ve migration yaşam döngüsü oluşur.
-- Projection hataları için replay, gözlemlenebilirlik ve operasyonel onarım
-  gerekir.
-- Yeni domain davranışları yeni event sözleşmeleri ve projector değişiklikleri
-  gerektirir.
+- Commands and queries are briefly inconsistent.
+- A fourth DbContext, schema, and migration lifecycle exist.
+- Projection failures require replay, observability, and repair.
+- New behavior can require new event contracts and projector changes.
 
-## Yeniden değerlendirme koşulları
+## Reconsider when
 
-- Takvim ayrı ölçekleme veya deployment ritmi gerektirirse
-- Projection lag için daha güçlü SLA oluşursa
-- Broker replay/partition ordering seçimi yapılırsa
-- Capacity change, release ve cancellation davranışları eklenirse
-- Birden fazla read model aynı event akışını tüketmeye başlarsa
+- The calendar needs separate scaling or deployment cadence.
+- Projection lag receives a stronger SLA.
+- Broker replay/partition ordering is selected.
+- Capacity changes, releases, or cancellations are introduced.
+- Multiple read models consume the same stream.
 
-## İlgili kanıtlar
+## Evidence
 
 - `AvailabilityCalendarProjectionTests`
 - `AvailabilityCalendarReadModel_DependsOnlyOnPublishedContracts`
-- [CQRS Availability Calendar rehberi](../architecture/cqrs-availability-calendar.md)
+- [CQRS Availability Calendar guide](../architecture/cqrs-availability-calendar.md)
