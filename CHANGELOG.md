@@ -42,3 +42,6 @@ No changes yet.
   PostgreSQL integration, and 13 API tests.
 - Release build completes with zero warnings and zero errors.
 - All five EF Core models match their latest migration snapshots.
+
+[Unreleased]: https://github.com/muratyildi/equipment-rental-ddd/compare/v1.0.0-rc.1...HEAD
+[1.0.0-rc.1]: https://github.com/muratyildi/equipment-rental-ddd/releases/tag/v1.0.0-rc.1

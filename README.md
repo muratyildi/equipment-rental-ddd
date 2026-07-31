@@ -1,5 +1,7 @@
 # Equipment Rental Platform
 
+[![CI](https://github.com/muratyildi/equipment-rental-ddd/actions/workflows/ci.yml/badge.svg)](https://github.com/muratyildi/equipment-rental-ddd/actions/workflows/ci.yml)
+
 > A learning-first, production-minded Domain-Driven Design reference built with
 > .NET 10.
 
