@@ -14,15 +14,15 @@ The system treats observability as three complementary signals:
 
 ### Correlation
 
-Every HTTP request has an \`X-Correlation-ID\`. A caller-supplied value is
+Every HTTP request has an `X-Correlation-ID`. A caller-supplied value is
 preserved only when it contains safe characters and is at most 128 characters;
 otherwise the current trace identifier or a new GUID is used.
 
 The selected value is:
 
 - returned in the response header;
-- assigned to \`HttpContext.TraceIdentifier\`;
-- added to the structured logging scope as \`CorrelationId\`; and
+- assigned to `HttpContext.TraceIdentifier`;
+- added to the structured logging scope as `CorrelationId`; and
 - included in Problem Details and health responses.
 
 Whitespace, line breaks, and control characters are rejected to prevent a
@@ -33,28 +33,28 @@ caller-controlled value from becoming a log-injection vector.
 Production console logs use JSON. Background workers use message templates
 instead of interpolated strings so fields remain searchable.
 
-The Eventing building block exposes vendor-neutral .NET \`ActivitySource\` and
-\`Meter\` APIs. It records Outbox publication, failure, and dead-letter signals,
+The Eventing building block exposes vendor-neutral .NET `ActivitySource` and
+`Meter` APIs. It records Outbox publication, failure, and dead-letter signals,
 plus Process Manager transitions and interventions. A deployment can attach
 OpenTelemetry, Application Insights, or another listener in the composition
 root without adding exporter dependencies to Domain projects.
 
 ### Liveness and readiness
 
-\`\`\`text
+```text
 GET /health/live
 GET /health/ready
-\`\`\`
+```
 
 Liveness answers only whether the process can respond. A database outage does
 not fail liveness, avoiding an orchestrator restart storm.
 
 Readiness checks PostgreSQL connectivity for all five DbContexts:
 
-- no connection returns \`Unhealthy / 503\`;
-- connectivity with dead-lettered work or a \`RequiresIntervention\` process
-  returns \`Degraded / 200\`; and
-- no detected problem returns \`Healthy / 200\`.
+- no connection returns `Unhealthy / 503`;
+- connectivity with dead-lettered work or a `RequiresIntervention` process
+  returns `Degraded / 200`; and
+- no detected problem returns `Healthy / 200`.
 
 A degraded instance can still receive traffic but requires an operational
 alert. Health endpoints are anonymous and exempt from application rate limits
@@ -72,8 +72,8 @@ Retries are bounded:
 
 | Operation | Budget | Terminal state |
 | --- | ---: | --- |
-| Outbox publication | 5 | \`DeadLetteredAtUtc\` |
-| Process Manager technical failure | 5 | \`RequiresIntervention\` |
+| Outbox publication | 5 | `DeadLetteredAtUtc` |
+| Process Manager technical failure | 5 | `RequiresIntervention` |
 
 Outbox retries use exponential backoff and never automatically reclaim a
 dead-lettered message. The worker does not claim a Process Manager in its
@@ -88,10 +88,10 @@ in the database is not the recovery mechanism.
 
 Business endpoints allow 100 requests per minute in a fixed window, partitioned
 by authenticated principal or client IP. Exceeding the limit returns
-\`429 Too Many Requests\`. This is a first abuse-control layer; production
+`429 Too Many Requests`. This is a first abuse-control layer; production
 values must be calibrated from traffic and SLO evidence.
 
-Rate limiting does not replace domain concurrency control. PostgreSQL \`xmin\`
+Rate limiting does not replace domain concurrency control. PostgreSQL `xmin`
 checks and Aggregate invariants remain the final consistency boundary.
 
 ## Security
@@ -102,8 +102,8 @@ API uses machine-to-machine API-key authentication.
 
 Two authorization scopes exist:
 
-- \`equipment-rental.read\`
-- \`equipment-rental.write\`
+- `equipment-rental.read`
+- `equipment-rental.write`
 
 GET business endpoints require read access; state-changing endpoints require
 write access. Keys are compared in constant time using SHA-256 digests.
@@ -111,7 +111,7 @@ Production keys are supplied through environment variables or a secret store
 and are never committed.
 
 Development keys are for local use only. Docker Compose reads overrides from
-\`.env\`, while \`.env.example\` contains no real secret.
+`.env`, while `.env.example` contains no real secret.
 
 Known limits of the current approach:
 
@@ -133,18 +133,18 @@ The multi-stage Dockerfile:
 
 Compose starts services in this order:
 
-\`\`\`text
+```text
 PostgreSQL healthy
     → one-shot migrations complete
     → API starts
-\`\`\`
+```
 
 The API does not migrate automatically at startup. This prevents multiple
 replicas from racing to change the schema and keeps migration as an explicit
 deployment step.
 
-\`\`\`bash
+```bash
 cp .env.example .env
 # Replace both example keys in .env
 docker compose up --build
-\`\`\`
+```

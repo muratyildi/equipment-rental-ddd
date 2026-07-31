@@ -5,7 +5,7 @@
 > .NET 10 ile geliştirilen, öğrenme odaklı fakat üretim kalitesini hedefleyen
 > Domain-Driven Design referans projesi.
 
-**Durum:** `v1.0.0-rc.1` release candidate · 81 test · sıfır uyarılı Release
+**Durum:** `v1.0.0` kararlı sürüm · 81 test · sıfır uyarılı Release
 build · ölçülmüş kanıta dayalı modüler monolit kararı
 
 [English](README.md) · [Mimari](docs/architecture/README.md) ·
@@ -183,7 +183,7 @@ telemetry exporter adapter'ları, kontrollü replay/runbook ve diğer context'le
 - [Operational Readiness rehberi](docs/architecture/operational-readiness.md)
 - [Service Extraction değerlendirmesi](docs/architecture/service-extraction-assessment.md)
 - [Service Extraction playbook](docs/architecture/service-extraction-playbook.md)
-- [v1.0.0-rc.1 yayın kontrol listesi](docs/releases/v1.0.0-rc.1.md)
+- [v1.0.0 yayın kaydı](docs/releases/v1.0.0.md)
 - [Rentals model açıklaması](docs/modules/rentals.md)
 - [Fleet Availability model açıklaması](docs/modules/fleet-availability.md)
 - [Notifications model açıklaması](docs/modules/notifications.md)

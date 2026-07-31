@@ -7,6 +7,28 @@ implementation.
 
 No changes yet.
 
+## [1.0.0] - 2026-07-31
+
+### Changed
+
+- Promoted the validated reference implementation from release candidate to
+  its first stable release.
+- Published architecture guides, ADRs, and learning material in consistent
+  English for an international audience.
+- Replaced Turkish documentation filenames and repaired all internal Markdown
+  links.
+- Updated the GitHub Actions and .NET test toolchain through validated
+  Dependabot pull requests.
+- Excluded local `tmp/` artifacts from repository publication.
+
+### Quality evidence
+
+- 81 executable tests pass.
+- Release build completes with zero warnings and zero errors.
+- All five EF Core models match their latest migration snapshots.
+- Repository hygiene, Markdown links, Compose configuration, and the non-root
+  runtime container image pass locally and on GitHub-hosted CI.
+
 ## [1.0.0-rc.1] - 2026-07-31
 
 ### Added
@@ -43,5 +65,6 @@ No changes yet.
 - Release build completes with zero warnings and zero errors.
 - All five EF Core models match their latest migration snapshots.
 
-[Unreleased]: https://github.com/muratyildi/equipment-rental-ddd/compare/v1.0.0-rc.1...HEAD
+[Unreleased]: https://github.com/muratyildi/equipment-rental-ddd/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/muratyildi/equipment-rental-ddd/releases/tag/v1.0.0
 [1.0.0-rc.1]: https://github.com/muratyildi/equipment-rental-ddd/releases/tag/v1.0.0-rc.1

@@ -90,7 +90,7 @@ part of the model:
 - documentation records the decisions behind it.
 
 If experts say “reserve capacity,” code should not silently call the concept
-\`UpdateInventoryRow\`. When the language changes because understanding
+`UpdateInventoryRow`. When the language changes because understanding
 improves, the model and code should be refactored with it.
 
 ## Strategic design

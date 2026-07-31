@@ -25,11 +25,11 @@ first if measurable drivers appear.
 
 ## Bounded Context, module, and service are different boundaries
 
-\`\`\`text
+```text
 Bounded Context = semantic boundary of a model and its Ubiquitous Language
 Module          = physical protection of that boundary in one codebase/process
 Service         = independent process and deployment boundary
-\`\`\`
+```
 
 A bounded context can be implemented completely inside a modular monolith. A
 service can also be poorly designed and mix several contexts. DDD does not
@@ -37,7 +37,7 @@ require one microservice per bounded context.
 
 Current topology:
 
-\`\`\`mermaid
+```mermaid
 flowchart TB
     HOST["EquipmentRental.Api<br/>one process / one deployment"]
     HOST --> R["Rentals module<br/>rentals schema"]
@@ -45,7 +45,7 @@ flowchart TB
     HOST --> N["Notifications module<br/>notifications schema"]
     HOST --> CAL["Availability Calendar projection<br/>fleet_availability_read schema"]
     HOST --> PM["Rental Confirmation Process Manager<br/>rentals_process_manager schema"]
-\`\`\`
+```
 
 Availability Calendar is a CQRS read model derived from Fleet Availability
 facts, not a separate bounded context. The Process Manager is an orchestration
@@ -128,7 +128,7 @@ overbooking invariant, which still belongs in a Fleet Aggregate transaction.
 Verified evidence:
 
 - is a Supporting Subdomain consuming only
-  \`rental-order-confirmed.v1\`;
+  `rental-order-confirmed.v1`;
 - has no application dependency on another business module;
 - writes Inbox and notification work in one local transaction; and
 - owns its schema.
@@ -173,9 +173,9 @@ worker for the same context, or pipeline improvements.
 
 ## Fitness functions
 
-\`ServiceExtractionFitnessTests\` preserve optionality by verifying that:
+`ServiceExtractionFitnessTests` preserve optionality by verifying that:
 
-- a business module can reference another module only through \`.Contracts\`;
+- a business module can reference another module only through `.Contracts`;
 - business modules cannot depend on the API composition root; and
 - published contract assemblies cannot depend on ASP.NET Core, EF Core, or
   Npgsql.

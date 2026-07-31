@@ -21,7 +21,7 @@ when a measured driver crosses the
 - Record the hard driver and its baseline.
 - Explain why a cheaper option is insufficient.
 - Assign context ownership, SLO, error budget, and on-call responsibility.
-- Open an extraction ADR with \`Proposed\` status.
+- Open an extraction ADR with `Proposed` status.
 
 ### 1. Stabilize contracts
 
@@ -30,7 +30,7 @@ when a measured driver crosses the
 - Document idempotency keys and retry semantics.
 - Define parallel-version and sunset policies for breaking changes.
 
-The in-process \`.Contracts\` assembly expresses today's design boundary. After
+The in-process `.Contracts` assembly expresses today's design boundary. After
 extraction, do not force two services to release the same binary together.
 Publish an independently versioned JSON Schema, AsyncAPI, or Protobuf contract.
 
@@ -38,12 +38,12 @@ Publish an independently versioned JSON Schema, AsyncAPI, or Protobuf contract.
 
 Keep the consumer-owned port and place a remote adapter beside the local one:
 
-\`\`\`text
+```text
 Rentals Application
     → IEquipmentAvailabilityGateway
         ├─ InProcessFleetAvailabilityGateway
         └─ RemoteFleetAvailabilityGateway
-\`\`\`
+```
 
 A feature flag in the composition root chooses the adapter. Domain and
 Application layers remain unaware of transport.
@@ -83,7 +83,7 @@ idempotency and reconciliation.
 - Delete the local adapter after the stabilization window.
 - Make the old schema read-only, then archive it under the retention policy.
 - Tighten architecture tests to reflect the new boundary.
-- Mark the ADR \`Accepted\` and record measured results.
+- Mark the ADR `Accepted` and record measured results.
 
 ## Fleet Availability extraction
 
@@ -97,17 +97,17 @@ continue. Once remote, every commit/release request has three outcomes:
 3. Fleet committed it but the response was lost.
 
 A timeout is therefore not equivalent to failure. Retrying with the same
-\`DemandId\` must return the previous idempotent result.
+`DemandId` must return the previous idempotent result.
 
 ### Target communication
 
 - Commit/release decisions: synchronous request/response with bounded timeout.
 - Capacity and commitment facts: durable Integration Events through a broker.
-- Every request: correlation ID and stable \`DemandId\`.
+- Every request: correlation ID and stable `DemandId`.
 - Retry: idempotent operations only, with bounded exponential backoff.
 - Circuit breaker: technical fast-failure, never a business rejection.
 - Process Manager: retries ambiguous outcomes and moves to
-  \`RequiresIntervention\` when the budget is exhausted.
+  `RequiresIntervention` when the budget is exhausted.
 
 ### Cutover sequence
 
@@ -137,13 +137,13 @@ deduplicates at-least-once delivery.
 
 ### Target communication
 
-\`\`\`text
+```text
 Rentals transaction
     → Rentals Outbox
     → durable broker
     → Notifications worker
     → Inbox + notification work item transaction
-\`\`\`
+```
 
 The broker is acknowledged only after Inbox and work item commit. Poison
 messages move to a dead-letter path after a bounded retry budget, while event
@@ -151,7 +151,7 @@ identity remains unchanged for replay.
 
 ### Cutover sequence
 
-1. Add a broker publisher behind \`IIntegrationEventPublisher\`.
+1. Add a broker publisher behind `IIntegrationEventPublisher`.
 2. Deploy the Notifications consumer as an independent worker.
 3. Apply its database/schema migration.
 4. Compare local and remote effects in a controlled environment.
@@ -171,11 +171,11 @@ Running a projection in another process does not automatically make it a
 separate Bounded Context. If read traffic grows, deploy the projection worker
 or query host independently while Fleet Availability retains model ownership.
 
-\`\`\`text
+```text
 separate read model ≠ separate bounded context
 separate process    ≠ new bounded context
 bounded context     ≠ mandatory separate process
-\`\`\`
+```
 
 ## Completion criteria
 

@@ -5,7 +5,7 @@
 DDD did not appear in isolation in 2003. It synthesized and redirected several
 earlier bodies of practice:
 
-\`\`\`mermaid
+```mermaid
 flowchart LR
     OOA["Object-oriented analysis and design"] --> EVANS["Eric Evans: DDD (2003)"]
     PAT["Design patterns and pattern languages"] --> EVANS
@@ -19,7 +19,7 @@ flowchart LR
     MODERN --> EDA["Event-driven integration"]
     MODERN --> MS["Microservices and cloud operations"]
     MODERN --> KH["Vlad Khononov's modern decision framework"]
-\`\`\`
+```
 
 Evans's contribution was not the isolated invention of Entities or Services.
 It was placing domain complexity at the center and connecting language,
